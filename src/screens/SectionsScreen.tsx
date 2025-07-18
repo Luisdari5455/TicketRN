@@ -21,7 +21,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Sections'>;
 type SectionsRouteProp = RouteProp<RootStackParamList, 'Sections'>;
 
 interface ServiceType {
-  id: number;
+  idService: number;
   name: string;
 }
 
@@ -31,6 +31,7 @@ export default function SectionsScreen() {
   const { dpi, name } = route.params;
 
   const [sections, setSections] = useState<ServiceType[]>([]);
+  console.log(sections,"valida sections")
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function SectionsScreen() {
       const ticketInfo = await registerTicket({
         dpi,
         name,
-        idService: section.id,
+        idService: section.idService,
       });
       navigation.navigate('Result', { ticketInfo });
     } catch (error) {
@@ -75,7 +76,7 @@ export default function SectionsScreen() {
 
       <FlatList
         data={sections}
-        keyExtractor={(item) => item?.id?.toString()}
+        keyExtractor={(item) => item?.idService?.toString()}
         contentContainerStyle={styles.listContainer}
         renderItem={({ item, index }) => (
           <MotiView
