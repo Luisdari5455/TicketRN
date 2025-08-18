@@ -35,30 +35,60 @@ export default function DpiScreen() {
     transform: [{ scale: scale.value }],
   }));
 
-  const isValidDpi = (dpi: string): boolean => {
-    if (!/^\d{13}$/.test(dpi)) return false;
+  /**
+   * Validación estructural de DPI de Guatemala
+   * - 13 dígitos
+   * - Departamento 01-22
+   * - Municipio válido según dpto
+   * - Evita entradas obvias inválidas (todos iguales, todos ceros)
+   * Retorna { ok, reason }
+   */
+  const validateDpi = (raw: string): { ok: boolean; reason?: string } => {
+    const value = (raw || "").replace(/\D/g, "");
 
-    const depto = parseInt(dpi.substring(9, 11), 10);
-    const muni = parseInt(dpi.substring(11, 13), 10);
+    if (value.length !== 13) {
+      return { ok: false, reason: "El DPI debe tener 13 dígitos." };
+    }
 
-    if (depto === 0 || muni === 0) return false;
+    // Evitar todos ceros o todos el mismo dígito
+    if (/^([0])\1{12}$/.test(value) || /^(\d)\1{12}$/.test(value)) {
+      return { ok: false, reason: "El DPI ingresado no es válido." };
+    }
+
+    // Extrae depto (pos 10-11) y muni (pos 12-13) en base 1
+    const depto = parseInt(value.substring(9, 11), 10);   // dígitos 10-11 (1-indexed)
+    const muni  = parseInt(value.substring(11, 13), 10);  // dígitos 12-13 (1-indexed)
+
+    if (!Number.isInteger(depto) || !Number.isInteger(muni) || depto <= 0 || muni <= 0) {
+      return { ok: false, reason: "Departamento o municipio inválidos." };
+    }
 
     const municipiosPorDepto: Record<number, number> = {
-      1: 17, 2: 8, 3: 16, 4: 16, 5: 14, 6: 30, 7: 19, 8: 8, 9: 11, 10: 17,
-      11: 33, 12: 30, 13: 21, 14: 8, 15: 17, 16: 14, 17: 5, 18: 11, 19: 30,
+      1: 17,  2: 8,  3: 16, 4: 16, 5: 14, 6: 30, 7: 19, 8: 8,  9: 11, 10: 17,
+      11: 33, 12: 30, 13: 21, 14: 8,  15: 17, 16: 14, 17: 5,  18: 11, 19: 30,
       20: 17, 21: 11, 22: 34,
     };
 
     const maxMuni = municipiosPorDepto[depto];
-    return !!maxMuni && muni <= maxMuni;
+    if (!maxMuni) {
+      return { ok: false, reason: "Departamento inexistente." };
+    }
+    if (muni > maxMuni) {
+      return { ok: false, reason: `El municipio no existe en el departamento ${depto}.` };
+    }
+
+    // (Opcional) Puedes agregar más reglas aquí (p.ej., listas negras conocidas, etc.)
+
+    return { ok: true };
   };
 
   const handleNext = () => {
-    if (!isValidDpi(dpi)) {
+    const result = validateDpi(dpi);
+    if (!result.ok) {
       Toast.show({
         type: "error",
         text1: "DPI inválido",
-        text2: "Ingrese un número de DPI válido de 13 dígitos.",
+        text2: result.reason || "Ingrese un número de DPI válido de 13 dígitos.",
       });
       return;
     }
@@ -73,7 +103,7 @@ export default function DpiScreen() {
     }
 
     navigation.navigate("Sections", {
-      dpi,
+      dpi: dpi.replace(/\D/g, ""),
       name: `${nombre.trim()} ${apellido.trim()}`,
     });
   };
@@ -112,7 +142,8 @@ export default function DpiScreen() {
             maxLength={13}
             value={dpi}
             onChangeText={(text) => {
-              const numericText = text.replace(/[^0-9]/g, "");
+              // Solo números, tope 13
+              const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
               setDpi(numericText);
             }}
             placeholderTextColor="#9CA3AF"

@@ -56,6 +56,7 @@ export default function SectionsScreen() {
         dpi,
         name,
         idService: section.idService,
+        locationId: "sucursal-central-01",
       });
       navigation.navigate('Result', { ticketInfo });
     } catch (error) {
