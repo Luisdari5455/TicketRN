@@ -16,7 +16,7 @@ const BASE_URL = DEFAULT_LOCAL; // ej. 'http://192.168.1.50:3001'
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
-  timeout: 10000,
+  timeout: 30000,
 });
 
 /** Payload de creación (lo que envías) */
