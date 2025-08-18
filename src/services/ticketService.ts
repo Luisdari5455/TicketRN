@@ -6,10 +6,10 @@ import { Platform } from 'react-native';
  * BACKEND URL:
  * - Android Emulator: http://10.0.2.2:3001
  * - iOS Simulator: http://localhost:3001
- * - Dispositivo físico: usa la IP local de tu PC, ej. http://192.168.1.50:3001
+ * - Dispositivo físico: usa la IP local de tu PC, ej. http://192.168.1.50:3001 https://ticketapi-ceqz.onrender.com/api/api
  */
 const DEFAULT_LOCAL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001';
+  Platform.OS === 'android' ? 'https://ticketapi-ceqz.onrender.com' : 'https://ticketapi-ceqz.onrender.com/api';
 
 // ⚠️ Si vas a probar en dispositivo físico, reemplaza por tu IP LAN:
 const BASE_URL = DEFAULT_LOCAL; // ej. 'http://192.168.1.50:3001'
