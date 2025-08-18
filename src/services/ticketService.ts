@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
  * - Dispositivo físico: usa la IP local de tu PC, ej. http://192.168.1.50:3001 https://ticketapi-ceqz.onrender.com/api/api
  */
 const DEFAULT_LOCAL =
-  Platform.OS === 'android' ? 'https://ticketapi-ceqz.onrender.com' : 'https://ticketapi-ceqz.onrender.com/api';
+  Platform.OS === 'android' ? 'https://ticketapi-ceqz.onrender.com' : 'https://ticketapi-ceqz.onrender.com';
 
 // ⚠️ Si vas a probar en dispositivo físico, reemplaza por tu IP LAN:
 const BASE_URL = DEFAULT_LOCAL; // ej. 'http://192.168.1.50:3001'
