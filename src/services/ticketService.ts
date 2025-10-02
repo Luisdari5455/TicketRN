@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Config from 'react-native-config';
 
-const DEFAULT_LOCAL = process.env.EXPO_PUBLIC_API_URL;
+const DEFAULT_LOCAL = process.env.VITE_APP_API_URL;
 const BASE_URL = DEFAULT_LOCAL; 
 
 const api = axios.create({
