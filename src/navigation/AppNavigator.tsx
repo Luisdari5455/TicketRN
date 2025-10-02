@@ -17,6 +17,7 @@ export type RootStackParamList = {
   Sections: {
     dpi?: string;
     name: string;
+    sessionId: string;
   };
   Result: {
     ticketInfo: any;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Pressable,
   TouchableOpacity,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import Toast from "react-native-toast-message";
@@ -21,208 +21,284 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { MotiView } from "moti";
+import { useIdleReset } from "../hooks/useIdleReset"; 
+import { getClientByDpi } from "../services/ticketService";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "DPI">;
+
+const DEPARTAMENTOS = [
+  'Guatemala','El Progreso','Sacatepéquez','Chimaltenango','Escuintla','Santa Rosa',
+  'Sololá','Totonicapán','Quetzaltenango','Suchitepéquez','Retalhuleu','San Marcos',
+  'Huehuetenango','Quiché','Baja Verapaz','Alta Verapaz','Petén','Izabal',
+  'Zacapa','Chiquimula','Jalapa','Jutiapa'
+];
+
+const MUNIS_POR_DEPTO = [
+  17, 8, 16, 16, 13, 14, 19, 8, 24, 21, 9, 30, 32, 21, 8, 17, 14, 5, 11, 11, 7, 17
+];
+
+function validateCUI(raw: string): { ok: true; deptoName: string; muniNum: number } | { ok: false; reason: string } {
+  const cuiRegExp = /^[0-9]{4}\s?[0-9]{5}\s?[0-9]{4}$/;
+  if (!raw) return { ok: false, reason: "El DPI está vacío." };
+  if (!cuiRegExp.test(raw)) return { ok: false, reason: "El DPI tiene un formato inválido." };
+
+  const cui = raw.replace(/\s/g, "");
+  if (cui.length !== 13) return { ok: false, reason: "El DPI debe tener 13 dígitos." };
+
+  const depto = parseInt(cui.substring(9, 11), 10);
+  const muni  = parseInt(cui.substring(11, 13), 10);
+  const numero = cui.substring(0, 8);
+  const verificador = parseInt(cui.substring(8, 9), 10);
+
+  if (depto === 0 || muni === 0) return { ok: false, reason: "Departamento o municipio inválidos." };
+  if (depto > MUNIS_POR_DEPTO.length) return { ok: false, reason: "Departamento inexistente." };
+  if (muni > MUNIS_POR_DEPTO[depto - 1]) {
+    return { ok: false, reason: `El municipio ${muni} no existe en el departamento ${DEPARTAMENTOS[depto - 1]}.` };
+  }
+
+  let total = 0;
+  for (let i = 0; i < numero.length; i++) {
+    const n = parseInt(numero[i], 10);
+    if (Number.isNaN(n)) return { ok: false, reason: "El DPI contiene caracteres inválidos." };
+    total += n * (i + 2);
+  }
+  const modulo = total % 11;
+  if (modulo !== verificador) return { ok: false, reason: "El DPI no es válido (dígito verificador)." };
+
+  return { ok: true, deptoName: DEPARTAMENTOS[depto - 1], muniNum: muni };
+}
+
+// Heurística simple para separar nombre(s) y apellido(s)
+function splitFullName(full: string) {
+  const parts = full.trim().replace(/\s+/g, " ").split(" ");
+  if (parts.length === 1) return { nombre: parts[0], apellido: "" };
+  if (parts.length === 2) return { nombre: parts[0], apellido: parts[1] };
+  return { nombre: parts.slice(0, -1).join(" "), apellido: parts.slice(-1).join(" ") };
+}
 
 export default function DpiScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [dpi, setDpi] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
+  const [locked, setLocked] = useState(false); // bloquea inputs si autocompletó
+  const lastQueried = useRef<string>("");      // evita re-consulta misma DPI
+  const autoFillDpiRef = useRef<string | null>(null); // DPI que disparó autocompletado
+
   const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const sessionId = useMemo(() => (global as any).crypto?.randomUUID?.() ?? String(Date.now()), []);
 
-  /**
-   * Validación estructural de DPI de Guatemala
-   * - 13 dígitos
-   * - Departamento 01-22
-   * - Municipio válido según dpto
-   * - Evita entradas obvias inválidas (todos iguales, todos ceros)
-   * Retorna { ok, reason }
-   */
-  const validateDpi = (raw: string): { ok: boolean; reason?: string } => {
-    const value = (raw || "").replace(/\D/g, "");
+  const clearAll = useCallback(() => {
+    setDpi('');
+    setNombre('');
+    setApellido('');
+    setLocked(false);
+    lastQueried.current = "";
+    autoFillDpiRef.current = null;
+  }, []);
 
-    if (value.length !== 13) {
-      return { ok: false, reason: "El DPI debe tener 13 dígitos." };
+  const clearAutoFilled = useCallback(() => {
+    if (locked || autoFillDpiRef.current) {
+      setLocked(false);
+      setNombre('');
+      setApellido('');
+      autoFillDpiRef.current = null;
     }
+  }, [locked]);
 
-    // Evitar todos ceros o todos el mismo dígito
-    if (/^([0])\1{12}$/.test(value) || /^(\d)\1{12}$/.test(value)) {
-      return { ok: false, reason: "El DPI ingresado no es válido." };
-    }
+  // Limpia al enfocar y al salir
+  useFocusEffect(
+    useCallback(() => {
+      clearAll(); // al entrar
+      return () => { clearAll(); }; // al salir
+    }, [clearAll])
+  );
 
-    // Extrae depto (pos 10-11) y muni (pos 12-13) en base 1
-    const depto = parseInt(value.substring(9, 11), 10);   // dígitos 10-11 (1-indexed)
-    const muni  = parseInt(value.substring(11, 13), 10);  // dígitos 12-13 (1-indexed)
+  // Inactividad
+  const { bump } = useIdleReset({
+    timeoutMs: 60000,
+    onTimeout: () => {
+      clearAll();
+      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
+      navigation.replace("Welcome");
+    },
+  });
 
-    if (!Number.isInteger(depto) || !Number.isInteger(muni) || depto <= 0 || muni <= 0) {
-      return { ok: false, reason: "Departamento o municipio inválidos." };
-    }
+  // Consulta cliente por DPI cuando hay 13 dígitos válidos
+  useEffect(() => {
+    const run = async () => {
+      if (dpi.length !== 13) return;
+      const v = validateCUI(dpi);
+      if (!v.ok) return;
 
-    const municipiosPorDepto: Record<number, number> = {
-      1: 17,  2: 8,  3: 16, 4: 16, 5: 14, 6: 30, 7: 19, 8: 8,  9: 11, 10: 17,
-      11: 33, 12: 30, 13: 21, 14: 8,  15: 17, 16: 14, 17: 5,  18: 11, 19: 30,
-      20: 17, 21: 11, 22: 34,
+      if (lastQueried.current === dpi) return; // ya lo buscamos
+      lastQueried.current = dpi;
+
+      try {
+        const client = await getClientByDpi(dpi);
+        if (client && client.name) {
+          const { nombre: n, apellido: a } = splitFullName(client.name);
+          setNombre(n);
+          setApellido(a);
+          setLocked(true);
+          autoFillDpiRef.current = dpi;
+          Toast.show({ type: "success", text1: "Cliente encontrado", text2: "Datos autocompletados." });
+        } else {
+          // No existe → desbloquea para ingresar manualmente
+          setLocked(false);
+          autoFillDpiRef.current = null;
+        }
+      } catch {
+        setLocked(false);
+        autoFillDpiRef.current = null;
+      }
     };
 
-    const maxMuni = municipiosPorDepto[depto];
-    if (!maxMuni) {
-      return { ok: false, reason: "Departamento inexistente." };
-    }
-    if (muni > maxMuni) {
-      return { ok: false, reason: `El municipio no existe en el departamento ${depto}.` };
-    }
+    const t = setTimeout(run, 200); // debounce
+    return () => clearTimeout(t);
+  }, [dpi]);
 
-    // (Opcional) Puedes agregar más reglas aquí (p.ej., listas negras conocidas, etc.)
-
-    return { ok: true };
-  };
+  // Si DPI deja de ser válido (menos de 13 dígitos) o cambia respecto al que autocompletó, limpiar nombres
+  useEffect(() => {
+    if (dpi.length < 13) {
+      clearAutoFilled();
+      lastQueried.current = "";
+    } else if (autoFillDpiRef.current && dpi !== autoFillDpiRef.current) {
+      clearAutoFilled();
+    }
+  }, [dpi, clearAutoFilled]);
 
   const handleNext = () => {
-    const result = validateDpi(dpi);
+    const result = validateCUI(dpi);
     if (!result.ok) {
       Toast.show({
         type: "error",
         text1: "DPI inválido",
         text2: result.reason || "Ingrese un número de DPI válido de 13 dígitos.",
       });
-      return;
+    } else if (!nombre.trim() || !apellido.trim()) {
+      Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
+    } else {
+      navigation.navigate("Sections", {
+        dpi: dpi.replace(/\D/g, ""),
+        name: `${nombre.trim()} ${apellido.trim()}`,
+        sessionId,
+      } as any);
     }
-
-    if (!nombre.trim() || !apellido.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Campos requeridos",
-        text2: "Ingrese nombre y apellido.",
-      });
-      return;
-    }
-
-    navigation.navigate("Sections", {
-      dpi: dpi.replace(/\D/g, ""),
-      name: `${nombre.trim()} ${apellido.trim()}`,
-    });
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <LinearGradient colors={["#0f172a", "#1e3a8a"]} style={styles.container}>
-        {/* Flecha de regreso */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate("Home")}
-        >
-          <FontAwesome5 name="arrow-left" size={24} color="#fff" />
-        </TouchableOpacity>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Pressable style={{ flex: 1 }} onTouchStart={bump}>
+        <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.container}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => { bump(); clearAll(); navigation.navigate("Home"); }}
+          >
+            <FontAwesome5 name="arrow-left" size={24} color="#fff" />
+          </TouchableOpacity>
 
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: "timing", duration: 700 }}
-          style={styles.innerContainer}
-        >
-          <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-          <Text style={styles.title}>Registro con DPI</Text>
-          <Text style={styles.subtitle}>
-            Por favor, ingrese sus datos
-          </Text>
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: "timing", duration: 700 }}
+            style={styles.innerContainer}
+          >
+            <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
+            <Text style={styles.title}>Registro con DPI</Text>
+            <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
-          {/* DPI */}
-          <TextInput
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="DPI: 1234567890123"
-            maxLength={13}
-            value={dpi}
-            onChangeText={(text) => {
-              // Solo números, tope 13
-              const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
-              setDpi(numericText);
-            }}
-            placeholderTextColor="#9CA3AF"
-          />
-
-          {/* Nombre */}
-          <TextInput
-            style={styles.input}
-            placeholder="Nombre"
-            value={nombre}
-            onChangeText={setNombre}
-            placeholderTextColor="#9CA3AF"
-          />
-
-          {/* Apellido */}
-          <TextInput
-            style={styles.input}
-            placeholder="Apellido"
-            value={apellido}
-            onChangeText={setApellido}
-            placeholderTextColor="#9CA3AF"
-          />
-
-          {/* Botón continuar */}
-          <View style={styles.buttonWrapper}>
-            <Pressable
-              onPressIn={() => {
-                scale.value = withSpring(0.95);
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              placeholder="DPI: 1234567890123"
+              maxLength={13}
+              value={dpi}
+              onChangeText={(text) => {
+                const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
+                setDpi(numericText);
+                bump();
+                // limpieza inmediata si rompe la validez
+                if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
+                  clearAutoFilled();
+                  lastQueried.current = "";
+                }
               }}
-              onPressOut={() => {
-                scale.value = withSpring(1);
-                handleNext();
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <TextInput
+              style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+              placeholder="Nombre"
+              value={nombre}
+              onChangeText={text => {
+                const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
+                setNombre(clean);
+                bump();
               }}
-            >
-              <Animated.View style={[styles.animatedButton, animatedStyle]}>
-                <Text style={styles.buttonText}>Continuar</Text>
-              </Animated.View>
-            </Pressable>
-          </View>
-        </MotiView>
-      </LinearGradient>
+              placeholderTextColor="#9CA3AF"
+              keyboardType="default"
+              autoCapitalize="words"
+              autoCorrect={false}
+              importantForAutofill="no"
+              textContentType="name"
+              editable={!locked}
+            />
+
+            <TextInput
+              style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+              placeholder="Apellido"
+              value={apellido}
+              onChangeText={text => {
+                const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
+                setApellido(clean);
+                bump();
+              }}
+              placeholderTextColor="#9CA3AF"
+              keyboardType="default"
+              autoCapitalize="words"
+              autoCorrect={false}
+              importantForAutofill="no"
+              textContentType="familyName"
+              editable={!locked}
+            />
+
+            {locked && (
+              <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
+                <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.buttonWrapper}>
+              <Pressable
+                onPressIn={() => { scale.value = withSpring(0.95); }}
+                onPressOut={() => {
+                  scale.value = withSpring(1);
+                  bump();
+                  handleNext();
+                }}
+              >
+                <Animated.View style={[styles.animatedButton, animatedStyle]}>
+                  <Text style={styles.buttonText}>Continuar</Text>
+                </Animated.View>
+              </Pressable>
+            </View>
+          </MotiView>
+        </LinearGradient>
+      </Pressable>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  innerContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  backButton: {
-    position: "absolute",
-    top: 40,
-    left: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  icon: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#ffffff",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#e5e7eb",
-    marginBottom: 20,
-    textAlign: "center",
-    paddingHorizontal: 12,
-  },
+  container: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
+  innerContainer: { justifyContent: "center", alignItems: "center" },
+  backButton: { position: "absolute", top: 40, left: 20, zIndex: 10, padding: 10 },
+  icon: { marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
+  subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 20, textAlign: "center", paddingHorizontal: 12 },
   input: {
     width: "90%",
     backgroundColor: "#ffffff",
@@ -240,12 +316,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  buttonWrapper: {
-    width: "90%",
-    borderRadius: 10,
-    overflow: "hidden",
-    marginTop: 10,
-  },
+  buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden", marginTop: 10 },
   animatedButton: {
     backgroundColor: "#1e40af",
     paddingVertical: 16,
@@ -259,10 +330,5 @@ const styles = StyleSheet.create({
     elevation: 4,
     width: "100%",
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-  },
+  buttonText: { color: "#fff", fontSize: 18, fontWeight: "600", letterSpacing: 0.5 },
 });
