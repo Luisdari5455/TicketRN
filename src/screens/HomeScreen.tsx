@@ -13,7 +13,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
 
   return (
-    <LinearGradient colors={['#0f172a', '#1e3a8a']} style={styles.container}>
+    <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.container}>
       <MotiView
         from={{ opacity: 0, translateY: -30 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -64,14 +64,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#fff',
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 22,
     fontWeight: '400',
-    color: '#e5e7eb',
+    color: '#fff',
     marginBottom: 40,
     textAlign: 'center',
   },
