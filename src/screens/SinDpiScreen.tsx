@@ -33,7 +33,11 @@ export default function SinDpiScreen() {
   const scale = useSharedValue(1);
 
   // (Opcional) Un sessionId para este intento de registro
-  const sessionId = useMemo(() => crypto.randomUUID?.() ?? String(Date.now()), []);
+const sessionId = useMemo(
+  () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
+  []
+);
+
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

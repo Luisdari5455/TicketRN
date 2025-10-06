@@ -2,28 +2,35 @@
   "expo": {
     "name": "TicketRN",
     "slug": "TicketRN",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "version": "1.0.5",
+    "orientation": "landscape",
+    "icon": "./assets/EEMQ2.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/EEMQ2.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true
-    },
+    "updates": { "enabled": false },
     "android": {
+      "package": "com.tuempresa.ticketrn",
+      "versionCode": 5,
+      "permissions": ["INTERNET", "WAKE_LOCK", "BLUETOOTH_CONNECT"],
+      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/EEMQ2.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "allowBackup": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "ios": { "supportsTablet": true },
+    "web": { "favicon": "./assets/EEMQ2.png" },
+    "extra": {
+      "eas": { "projectId": "0bc0a0a4-3164-4acf-aeec-119f783d30d7" }
+    },
+    "plugins": [
+      "./plugins/with-kiosk-stop.js"
+    ]
   }
 }

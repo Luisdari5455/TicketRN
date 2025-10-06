@@ -1,0 +1,11 @@
+{
+  "name": "Ticket App",
+  "short_name": "Tickets",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",        
+  "orientation": "landscape",
+  "background_color": "#ffffff",
+  "theme_color": "#0B61A4"
+
+}

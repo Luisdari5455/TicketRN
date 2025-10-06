@@ -154,39 +154,41 @@ export default function SectionsScreen() {
     }, SUBMIT_TIMEOUT_MS);
   };
 
-  const handleSelect = async (section: ServiceType) => {
-    // Doble-tap guard
-    if (submittingServiceId !== null) return;
+const handleSelect = async (section: ServiceType) => {
+  if (submittingServiceId !== null) return;
 
-    try {
-      bump(); // ✅ interacción reinicia timer
-      setSubmittingServiceId(section.idService);
-      startSafetyTimer();
+  try {
+    bump();
+    setSubmittingServiceId(section.idService);
+    startSafetyTimer();
 
-      // Idempotencia client-side: misma sesión/DPI/servicio produce la misma clave
-      const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
+    const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
 
-      const ticketInfo = await registerTicket({
-        dpi,
-        name,
-        idService: section.idService,
-        locationId: 'sucursal-central-01',
-        idempotencyKey,
-      });
+    // ⬇️ NO mandes dpi si no existe
+    const payload: any = {
+      name,
+      idService: section.idService,
+      locationId: 'sucursal-central-01',
+      idempotencyKey,
+    };
+    if (dpi) payload.dpi = dpi;
 
-      if (!isMountedRef.current) return;
-      clearSafetyTimer();
-      setSubmittingServiceId(null);
+    const ticketInfo = await registerTicket(payload);
 
-      navigation.navigate('Result', { ticketInfo });
-    } catch (error) {
-      console.error('Error al registrar ticket:', error);
-      if (!isMountedRef.current) return;
-      clearSafetyTimer();
-      setSubmittingServiceId(null);
-      Alert.alert('Error', 'No se pudo registrar el ticket.');
-    }
-  };
+    if (!isMountedRef.current) return;
+    clearSafetyTimer();
+    setSubmittingServiceId(null);
+
+    navigation.navigate('Result', { ticketInfo });
+  } catch (error: any) {
+    console.error('Error al registrar ticket:', error?.response?.data || error?.message || error);
+    if (!isMountedRef.current) return;
+    clearSafetyTimer();
+    setSubmittingServiceId(null);
+    Alert.alert('Error', 'No se pudo registrar el ticket.');
+  }
+};
+
 
   const openDetails = (service: ServiceType) => {
     if (submittingServiceId !== null) return; // no abrir mientras enviamos

@@ -1,0 +1,62 @@
+<!-- web/index.html -->
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ticket App</title>
+
+    <!-- Escala responsiva -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- Color de la UI (barra del navegador, etc.) -->
+    <meta name="theme-color" content="#0B61A4" />
+
+    <!-- PWA: Manifest + Iconos -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+
+    <!-- PWA: Instalación a pantalla completa en iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tickets" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- Fuente opcional (si usas @expo/vector-icons con fuentes personalizadas) -->
+    <!-- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      -->
+        <style>
+      html, body, #root { height: 100%; }
+      body { margin: 0; -webkit-font-smoothing: antialiased; }
+    </style>
+  </head>
+  <body>
+    <noscript>Necesitas habilitar JavaScript para ejecutar esta aplicación.</noscript>
+    <div id="root"></div>
+
+    <!-- Registro de Service Worker (necesario para “Instalar app”) -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/service-worker.js")
+            .catch((e) => console.warn("SW registro falló:", e));
+        });
+      }
+
+      // Intento de Wake Lock para que no se apague la pantalla (si el navegador lo soporta)
+      (async () => {
+        try {
+          // @ts-ignore
+          let wl = await navigator.wakeLock?.request("screen");
+          document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState === "visible") {
+              // @ts-ignore
+              wl = await navigator.wakeLock?.request("screen");
+            }
+          });
+        } catch (e) {
+          console.warn("WakeLock no disponible:", e);
+        }
+      })();
+    </script>
+  </body>
+</html>
