@@ -16,7 +16,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
     try {
       val activity: Activity? = currentActivity
       if (activity != null) {
-        activity.stopLockTask()   // <- clave: rompe Lock Task real
+        activity.stopLockTask()
         promise.resolve(true)
       } else {
         promise.reject("NO_ACTIVITY", "No current activity")

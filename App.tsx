@@ -58,7 +58,7 @@ export default function App() {
     return () => { appSub.remove(); backSub.remove(); clearInterval(interval); };
   }, []);
 
-  // ---- Entrada con PIN (bloquea TODO hasta que sea correcto)
+  // ---- Entrada con PIN
   const tryEntryUnlock = () => {
     if (entryPin === ENTRY_PIN) {
       setIsUnlocked(true);
@@ -71,7 +71,7 @@ export default function App() {
     }
   };
 
-  // ---- 5 toques rápidos en esquina sup. izq. para pedir PIN de salida:
+  // ---- 5 toques rápidos en esquina sup. izq. para pedir PIN de salida
   const handleSecretTap = () => {
     tapsRef.current += 1;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -83,23 +83,21 @@ export default function App() {
     }
   };
 
-const tryExitUnlock = async () => {
-  if (exitPin === ADMIN_PIN) {
-    const brokeLock = await stopKioskIfPossible(); // rompe Lock Task real si está activo
-    await NavigationBar.setVisibilityAsync('visible').catch(() => {});
-    Toast.show({ type: 'success', text1: brokeLock ? 'Lock Task detenido' : 'Saliendo' });
-    BackHandler.exitApp(); // opcional
-  } else {
-    Toast.show({ type: 'error', text1: 'PIN incorrecto' });
-    setExitPin('');
-  }
-};
-
+  const tryExitUnlock = async () => {
+    if (exitPin === ADMIN_PIN) {
+      const brokeLock = await stopKioskIfPossible(); // rompe Lock Task real si está activo
+      await NavigationBar.setVisibilityAsync('visible').catch(() => {});
+      Toast.show({ type: 'success', text1: brokeLock ? 'Lock Task detenido' : 'Saliendo' });
+      BackHandler.exitApp(); // opcional
+    } else {
+      Toast.show({ type: 'error', text1: 'PIN incorrecto' });
+      setExitPin('');
+    }
+  };
 
   return (
     <SafeAreaProvider>
       <StatusBar hidden />
-      {/* Si NO está desbloqueado, mostramos SOLO la pantalla de PIN de entrada */}
       {!isUnlocked ? (
         <View style={{ flex: 1, backgroundColor:'#0f172a', alignItems:'center', justifyContent:'center', padding:24 }}>
           <Text style={{ color:'#fff', fontSize:24, fontWeight:'800', marginBottom:16 }}>Ingrese PIN para continuar</Text>
@@ -118,12 +116,13 @@ const tryExitUnlock = async () => {
           <Pressable onPress={tryEntryUnlock} style={{ marginTop:16, backgroundColor:'#1e40af', paddingVertical:12, paddingHorizontal:24, borderRadius:10 }}>
             <Text style={{ color:'#fff', fontSize:18, fontWeight:'700' }}>Desbloquear</Text>
           </Pressable>
-          {/* área invisible también aquí para re-ocultar barra */}
+          {/* área invisible para re-ocultar barra */}
           <Pressable onPress={hideNavBar} style={{ position:'absolute', top:0, left:0, width:80, height:80 }} />
         </View>
       ) : (
         <>
-          <View style={{ flex: 1, backgroundColor: '#fff' }}>
+          {/* Aquí agregué onLayout={hideNavBar} */}
+          <View style={{ flex: 1, backgroundColor: '#fff' }} onLayout={hideNavBar}>
             <AppNavigator />
             <Toast config={toastConfig} />
           </View>

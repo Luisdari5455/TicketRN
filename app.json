@@ -2,35 +2,36 @@
   "expo": {
     "name": "TicketRN",
     "slug": "TicketRN",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "landscape",
-    "icon": "./assets/EEMQ2.png",
+    "icon": "./assets/icon-1024.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/EEMQ2.png",
+      "image": "./assets/icon-1024.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "updates": { "enabled": false },
     "android": {
       "package": "com.tuempresa.ticketrn",
-      "versionCode": 5,
+      "versionCode": 6,
       "permissions": ["INTERNET", "WAKE_LOCK", "BLUETOOTH_CONNECT"],
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/EEMQ2.png",
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#ffffff"
       },
       "allowBackup": false
     },
     "ios": { "supportsTablet": true },
-    "web": { "favicon": "./assets/EEMQ2.png" },
+    "web": { "favicon": "./assets/icon-1024.png" },
     "extra": {
       "eas": { "projectId": "0bc0a0a4-3164-4acf-aeec-119f783d30d7" }
     },
     "plugins": [
-      "./plugins/with-kiosk-stop.js"
+      "./plugins/with-kiosk-native.js",
+      "./plugins/with-immersive-mode.js"
     ]
   }
 }

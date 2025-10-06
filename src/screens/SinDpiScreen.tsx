@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,8 +21,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
-import { useCallback } from 'react';
-import { useIdleReset } from '../hooks/useIdleReset'; // <— importa el hook
+import { useIdleReset } from '../hooks/useIdleReset';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SinDPI'>;
 
@@ -32,18 +31,28 @@ export default function SinDpiScreen() {
   const [apellido, setApellido] = useState('');
   const scale = useSharedValue(1);
 
-  // (Opcional) Un sessionId para este intento de registro
-const sessionId = useMemo(
-  () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
-  []
-);
+  // ID de sesión opcional
+  const sessionId = useMemo(
+    () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
+    []
+  );
 
+  // === Sanitizador: solo letras (todas las lenguas), tildes, apóstrofo, guion, espacios ===
+  // \p{L} = letras Unicode, \p{M} = marcas (tildes combinadas)
+  const sanitize = useCallback((raw: string) => {
+    return raw
+      .normalize('NFC')                                // normaliza tildes
+      .replace(/[^\p{L}\p{M}\s'’-]/gu, '')            // quita todo lo que NO sea letra/tilde/espacio/'/–
+      .replace(/\s{2,}/g, ' ')                         // colapsa espacios múltiples
+      .replace(/^\s+/g, '')                            // sin espacios al inicio
+      .slice(0, 60);                                   // límite razonable (opcional)
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  // Limpia SIEMPRE al entrar/enfocar la pantalla
+  // Limpia al entrar/enfocar la pantalla
   useFocusEffect(
     useCallback(() => {
       setNombre('');
@@ -52,13 +61,14 @@ const sessionId = useMemo(
     }, [])
   );
 
-  // Inactividad: si no hay interacción en X ms, limpia y regresa a Home
+  // Inactividad: reinicia
   const { bump } = useIdleReset({
-    timeoutMs: 60000, // 60s (ajústalo a lo que necesites)
+    timeoutMs: 60000,
     onTimeout: () => {
       setNombre('');
       setApellido('');
       Alert.alert('Sesión reiniciada', 'Sin actividad, se limpió el formulario.');
+      
       navigation.replace('Welcome');
     },
   });
@@ -70,21 +80,55 @@ const sessionId = useMemo(
     }
     navigation.navigate('Sections', {
       name: `${nombre.trim()} ${apellido.trim()}`,
-      sessionId, // <— opcional
+      sessionId,
     } as any);
   };
 
   const handleNombreChange = (text: string) => {
-    const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
+    const clean = sanitize(text);
     setNombre(clean);
     bump();
   };
 
   const handleApellidoChange = (text: string) => {
-    const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
+    const clean = sanitize(text);
     setApellido(clean);
     bump();
   };
+
+  // ---------- ✅ Back robusto ----------
+  const safeBack = () => {
+    // 1) Volver si hay historial en este stack
+    if (navigation.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    // 2) Intentar navegar en el navegador padre (Tabs/Drawer) a 'Home'
+    const parent = navigation.getParent?.();
+    if (parent) {
+      try {
+        parent.navigate('Home' as never);
+        return;
+      } catch (_) {
+        // ignoramos y seguimos al reset
+      }
+    }
+
+    // 3) Último recurso: resetear este stack a 'Home' (o 'Welcome')
+    try {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' as never }],
+      });
+    } catch {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' as never }],
+      });
+    }
+  };
+  // -------------------------------------
 
   return (
     <KeyboardAvoidingView
@@ -95,7 +139,7 @@ const sessionId = useMemo(
       <Pressable style={{ flex: 1 }} onTouchStart={bump}>
         <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.wrapper}>
           {/* Flecha para regresar */}
-          <TouchableOpacity style={styles.backButton} onPress={() => { bump(); navigation.navigate('Home'); }}>
+          <TouchableOpacity style={styles.backButton} onPress={() => { bump(); safeBack(); }}>
             <FontAwesome5 name="arrow-left" size={24} color="#fff" />
           </TouchableOpacity>
 
@@ -115,11 +159,12 @@ const sessionId = useMemo(
               placeholderTextColor="#9CA3AF"
               value={nombre}
               onChangeText={handleNombreChange}
-              keyboardType="default"
+              keyboardType="default"          // no numérico
               autoCapitalize="words"
               autoCorrect={false}
               importantForAutofill="no"
               textContentType="name"
+              contextMenuHidden={true}        // opcional: bloquea pegar/copiar
             />
             <TextInput
               style={styles.input}
@@ -132,6 +177,7 @@ const sessionId = useMemo(
               autoCorrect={false}
               importantForAutofill="no"
               textContentType="familyName"
+              contextMenuHidden={true}        // opcional
             />
 
             <View style={styles.buttonWrapper}>

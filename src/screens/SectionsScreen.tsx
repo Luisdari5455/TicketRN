@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -79,7 +79,11 @@ export default function SectionsScreen() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => { isMountedRef.current = false; };
+    return () => {
+      isMountedRef.current = false;
+      // limpia cualquier timer pendiente al desmontar
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    };
   }, []);
 
   // ✅ Guardia de sesión: si no viene sessionId, vuelve a Home
@@ -154,41 +158,75 @@ export default function SectionsScreen() {
     }, SUBMIT_TIMEOUT_MS);
   };
 
-const handleSelect = async (section: ServiceType) => {
-  if (submittingServiceId !== null) return;
+  // ---------- ✅ Back robusto ----------
+  const safeBack = useCallback(() => {
+    // 0) Si el modal está abierto y NO estamos enviando, primero ciérralo
+    if (detailsVisible && submittingServiceId === null) {
+      setDetailsVisible(false);
+      return;
+    }
+    // 1) Si hay historial en este stack
+    if (navigation.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    // 2) Intentar navegar en el padre a 'Home'
+    const parent = navigation.getParent?.();
+    if (parent) {
+      try {
+        parent.navigate('Home' as never);
+        return;
+      } catch (_) {}
+    }
+    // 3) Último recurso: reset del stack
+    try {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' as never }],
+      });
+    } catch {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' as never }],
+      });
+    }
+  }, [detailsVisible, submittingServiceId, navigation]);
+  // -------------------------------------
 
-  try {
-    bump();
-    setSubmittingServiceId(section.idService);
-    startSafetyTimer();
+  const handleSelect = async (section: ServiceType) => {
+    if (submittingServiceId !== null) return;
 
-    const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
+    try {
+      bump();
+      setSubmittingServiceId(section.idService);
+      startSafetyTimer();
 
-    // ⬇️ NO mandes dpi si no existe
-    const payload: any = {
-      name,
-      idService: section.idService,
-      locationId: 'sucursal-central-01',
-      idempotencyKey,
-    };
-    if (dpi) payload.dpi = dpi;
+      const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
 
-    const ticketInfo = await registerTicket(payload);
+      // ⬇️ NO mandes dpi si no existe
+      const payload: any = {
+        name,
+        idService: section.idService,
+        locationId: 'sucursal-central-01',
+        idempotencyKey,
+      };
+      if (dpi) payload.dpi = dpi;
 
-    if (!isMountedRef.current) return;
-    clearSafetyTimer();
-    setSubmittingServiceId(null);
+      const ticketInfo = await registerTicket(payload);
 
-    navigation.navigate('Result', { ticketInfo });
-  } catch (error: any) {
-    console.error('Error al registrar ticket:', error?.response?.data || error?.message || error);
-    if (!isMountedRef.current) return;
-    clearSafetyTimer();
-    setSubmittingServiceId(null);
-    Alert.alert('Error', 'No se pudo registrar el ticket.');
-  }
-};
+      if (!isMountedRef.current) return;
+      clearSafetyTimer();
+      setSubmittingServiceId(null);
 
+      navigation.navigate('Result', { ticketInfo });
+    } catch (error: any) {
+      console.error('Error al registrar ticket:', error?.response?.data || error?.message || error);
+      if (!isMountedRef.current) return;
+      clearSafetyTimer();
+      setSubmittingServiceId(null);
+      Alert.alert('Error', 'No se pudo registrar el ticket.');
+    }
+  };
 
   const openDetails = (service: ServiceType) => {
     if (submittingServiceId !== null) return; // no abrir mientras enviamos
@@ -253,7 +291,7 @@ const handleSelect = async (section: ServiceType) => {
           onPress={() => {
             if (submittingServiceId !== null) return; // bloquea atrás durante envío
             bump(); // ✅
-            navigation.goBack();
+            safeBack();
           }}
           accessibilityLabel="Regresar"
           activeOpacity={0.85}

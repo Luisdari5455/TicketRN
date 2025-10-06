@@ -2,12 +2,15 @@
   "build": {
     "preview": {
       "android": { "buildType": "apk" },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": { "NODE_ENV": "production" }
     },
     "production": {
       "autoIncrement": true,
-      "android": { "gradleCommand": ":app:bundleRelease" }
+      "android": { "gradleCommand": ":app:bundleRelease" },
+      "env": { "NODE_ENV": "production" }
     }
   },
-  "submit": { "production": {} }
+  "submit": { "production": {} },
+  "cli": { "appVersionSource": "remote" }
 }

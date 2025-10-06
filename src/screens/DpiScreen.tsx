@@ -76,6 +76,15 @@ function splitFullName(full: string) {
   return { nombre: parts.slice(0, -1).join(" "), apellido: parts.slice(-1).join(" ") };
 }
 
+// 🔒 Solo letras (todas), tildes/ñ y espacios
+const sanitizeName = (raw: string) =>
+  raw
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{M}\s]/gu, '') // quita todo lo que NO sea letra/tilde/espacio
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s+/g, '')
+    .slice(0, 60);
+
 export default function DpiScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [dpi, setDpi] = useState("");
@@ -90,7 +99,7 @@ export default function DpiScreen() {
 
   const sessionId = useMemo(() => (global as any).crypto?.randomUUID?.() ?? String(Date.now()), []);
 
-  const clearAll = useCallback(() => {
+  const clearAll = useCallback((): void => {
     setDpi('');
     setNombre('');
     setApellido('');
@@ -99,7 +108,7 @@ export default function DpiScreen() {
     autoFillDpiRef.current = null;
   }, []);
 
-  const clearAutoFilled = useCallback(() => {
+  const clearAutoFilled = useCallback((): void => {
     if (locked || autoFillDpiRef.current) {
       setLocked(false);
       setNombre('');
@@ -107,6 +116,32 @@ export default function DpiScreen() {
       autoFillDpiRef.current = null;
     }
   }, [locked]);
+
+  // ✅ Back robusto (goBack → parent.navigate('Home') → reset a 'Home'/'Welcome')
+  const safeBack = useCallback(() => {
+    if (navigation.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    const parent = navigation.getParent?.();
+    if (parent) {
+      try {
+        parent.navigate('Home' as never);
+        return;
+      } catch (_) {}
+    }
+    try {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' as never }],
+      });
+    } catch {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' as never }],
+      });
+    }
+  }, [navigation]);
 
   // Limpia al enfocar y al salir
   useFocusEffect(
@@ -140,8 +175,8 @@ export default function DpiScreen() {
         const client = await getClientByDpi(dpi);
         if (client && client.name) {
           const { nombre: n, apellido: a } = splitFullName(client.name);
-          setNombre(n);
-          setApellido(a);
+          setNombre(sanitizeName(n));
+          setApellido(sanitizeName(a));
           setLocked(true);
           autoFillDpiRef.current = dpi;
           Toast.show({ type: "success", text1: "Cliente encontrado", text2: "Datos autocompletados." });
@@ -195,7 +230,7 @@ export default function DpiScreen() {
         <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.container}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => { bump(); clearAll(); navigation.navigate("Home"); }}
+            onPress={() => { bump(); clearAll(); safeBack(); }}
           >
             <FontAwesome5 name="arrow-left" size={24} color="#fff" />
           </TouchableOpacity>
@@ -210,6 +245,7 @@ export default function DpiScreen() {
             <Text style={styles.title}>Registro con DPI</Text>
             <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
+            {/* DPI: SOLO NÚMEROS (13) */}
             <TextInput
               style={styles.input}
               keyboardType="numeric"
@@ -227,15 +263,16 @@ export default function DpiScreen() {
                 }
               }}
               placeholderTextColor="#9CA3AF"
+              contextMenuHidden={true} // bloquea pegar/copiar (opcional)
             />
 
+            {/* NOMBRE: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
             <TextInput
               style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
               placeholder="Nombre"
               value={nombre}
               onChangeText={text => {
-                const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
-                setNombre(clean);
+                setNombre(sanitizeName(text));
                 bump();
               }}
               placeholderTextColor="#9CA3AF"
@@ -245,15 +282,16 @@ export default function DpiScreen() {
               importantForAutofill="no"
               textContentType="name"
               editable={!locked}
+              contextMenuHidden={true} // opcional
             />
 
+            {/* APELLIDO: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
             <TextInput
               style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
               placeholder="Apellido"
               value={apellido}
               onChangeText={text => {
-                const clean = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s']/g, '');
-                setApellido(clean);
+                setApellido(sanitizeName(text));
                 bump();
               }}
               placeholderTextColor="#9CA3AF"
@@ -263,6 +301,7 @@ export default function DpiScreen() {
               importantForAutofill="no"
               textContentType="familyName"
               editable={!locked}
+              contextMenuHidden={true} // opcional
             />
 
             {locked && (
