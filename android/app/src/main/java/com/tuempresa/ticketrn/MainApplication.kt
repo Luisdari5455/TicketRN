@@ -1,50 +1,51 @@
 package com.tuempresa.ticketrn
 
-import android.os.Build
-import android.os.Bundle
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import com.facebook.react.ReactActivity
-import com.facebook.react.ReactActivityDelegate
-import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
-import com.facebook.react.defaults.DefaultReactActivityDelegate
+import android.app.Application
+import android.content.res.Configuration
+import com.facebook.react.PackageList
+import com.facebook.react.ReactApplication
+import com.facebook.react.ReactHost
+import com.facebook.react.ReactPackage
+import com.facebook.react.ReactNativeHost
+import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
+import com.facebook.react.defaults.DefaultReactNativeHost
+import com.facebook.react.soloader.OpenSourceMergedSoMapping
+import com.facebook.soloader.SoLoader
+import expo.modules.ApplicationLifecycleDispatcher
+import expo.modules.ReactNativeHostWrapper
+import com.tuempresa.kiosk.KioskPackage
 
-class MainActivity : ReactActivity() {
+class MainApplication : Application(), ReactApplication {
 
-  override fun getMainComponentName(): String = "main"
-
-  override fun createReactActivityDelegate(): ReactActivityDelegate {
-    return DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
-  }
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    enableStickyImmersive()
-  }
-
-  // FIRMA CORRECTA EN KOTLIN: NADA de 'public' ni 'boolean'
-  override fun onWindowFocusChanged(hasFocus: Boolean) {
-    super.onWindowFocusChanged(hasFocus)
-    if (hasFocus) enableStickyImmersive()
-  }
-
-  private fun enableStickyImmersive() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      window.setDecorFitsSystemWindows(false)
-      window.insetsController?.let { c ->
-        c.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-        c.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+  override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
+    this,
+    object : DefaultReactNativeHost(this) {
+      override fun getPackages(): List<ReactPackage> {
+        val packages = PackageList(this).packages
+        packages.add(KioskPackage())
+        return packages
       }
-    } else {
-      @Suppress("DEPRECATION")
-      window.decorView.systemUiVisibility =
-        (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-          or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-          or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-          or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-          or View.SYSTEM_UI_FLAG_FULLSCREEN
-          or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+      override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
+      override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
+      override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+      override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
     }
+  )
+
+  override val reactHost: ReactHost
+    get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
+
+  override fun onCreate() {
+    super.onCreate()
+    SoLoader.init(this, OpenSourceMergedSoMapping)
+    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+      load()
+    }
+    ApplicationLifecycleDispatcher.onApplicationCreate(this)
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
   }
 }

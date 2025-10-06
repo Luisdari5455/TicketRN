@@ -7,15 +7,19 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
-import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
-  override fun getMainComponentName(): String = "main" // ajusta si tu AppRegistry usa otro nombre
+  override fun getMainComponentName(): String = "main" // si tu AppRegistry usa "main"
 
   override fun createReactActivityDelegate(): ReactActivityDelegate {
-    return DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+    // Evita el import de fabricEnabled: usa el flag del BuildConfig
+    return DefaultReactActivityDelegate(
+      this,
+      mainComponentName,
+      BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+    )
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +27,7 @@ class MainActivity : ReactActivity() {
     enableStickyImmersive()
   }
 
-  // FIRMA CORRECTA EN KOTLIN (sin 'public', sin 'boolean'):
+  // FIRMA CORRECTA EN KOTLIN (nada de 'public' ni 'boolean')
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
     if (hasFocus) enableStickyImmersive()
