@@ -224,19 +224,9 @@ export default function DpiScreen() {
         onTouchStart={bump}
       >
         {/* Botón de regreso grande y visible */}
-        <TouchableOpacity
-          style={[styles.backButton, { top: insets.top + 8 }]}
-          onPress={() => { clearAll(); safeBack(); }}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Regresar"
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-        >
-          <View style={styles.backPill}>
-            <FontAwesome5 name="arrow-left" size={18} color="#0f172a" />
-            <Text style={styles.backLabel}>Regresar</Text>
-          </View>
-        </TouchableOpacity>
+           <TouchableOpacity style={styles.backButton} onPress={() => { bump(); safeBack(); }}>
+                   <FontAwesome5 name="arrow-left" size={24} color="#fff" />
+                 </TouchableOpacity>
 
         <MotiView
           from={{ opacity: 0, translateY: 20 }}

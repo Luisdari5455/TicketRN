@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,21 +14,21 @@ import {
   Easing,
   Platform,
   ActivityIndicator,
-} from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MotiView } from 'moti';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { getServices, registerTicket } from '../services/ticketService';
-import type { RouteProp } from '@react-navigation/native';
-import { useIdleReset } from '../hooks/useIdleReset';
-import { useKeepAwake } from 'expo-keep-awake';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/AppNavigator";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView } from "moti";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { getServices, registerTicket } from "../services/ticketService";
+import type { RouteProp } from "@react-navigation/native";
+import { useIdleReset } from "../hooks/useIdleReset";
+import { useKeepAwake } from "expo-keep-awake";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Sections'>;
-type SectionsRouteProp = RouteProp<RootStackParamList, 'Sections'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Sections">;
+type SectionsRouteProp = RouteProp<RootStackParamList, "Sections">;
 
 interface ServiceType {
   idService: number;
@@ -36,11 +36,11 @@ interface ServiceType {
   description?: string;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
-const COL_CHAMBRAY = '#3b618c';
-const COL_DEEP = '#104c80';
-const COL_NAVY = '#0f172a';
+const COL_CHAMBRAY = "#3b618c";
+const COL_DEEP = "#104c80";
+const COL_NAVY = "#0f172a";
 
 const SHEET_HEIGHT = Math.min(height * 0.68, 560);
 const MAX_SHEET_WIDTH = 720;
@@ -57,9 +57,13 @@ export default function SectionsScreen() {
   const [loading, setLoading] = useState(true);
 
   const [detailsVisible, setDetailsVisible] = useState(false);
-  const [detailsService, setDetailsService] = useState<ServiceType | null>(null);
+  const [detailsService, setDetailsService] = useState<ServiceType | null>(
+    null
+  );
 
-  const [submittingServiceId, setSubmittingServiceId] = useState<number | null>(null);
+  const [submittingServiceId, setSubmittingServiceId] = useState<number | null>(
+    null
+  );
   const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
@@ -78,8 +82,8 @@ export default function SectionsScreen() {
 
   useEffect(() => {
     if (!sessionId) {
-      Alert.alert('Sesión inválida', 'Vuelve a iniciar el registro.');
-      navigation.replace('Welcome' as any);
+      Alert.alert("Sesión inválida", "Vuelve a iniciar el registro.");
+      navigation.replace("Welcome" as any);
     }
   }, [sessionId, navigation]);
 
@@ -87,8 +91,8 @@ export default function SectionsScreen() {
     timeoutMs: 60000,
     onTimeout: () => {
       setDetailsVisible(false);
-      Alert.alert('Sesión reiniciada', 'Sin actividad, se reinició el flujo.');
-      navigation.replace('Welcome' as any);
+      Alert.alert("Sesión reiniciada", "Sin actividad, se reinició el flujo.");
+      navigation.replace("Welcome" as any);
     },
   });
 
@@ -98,8 +102,8 @@ export default function SectionsScreen() {
         const data = await getServices();
         setSections(data.items);
       } catch (err) {
-        console.error('Error al obtener servicios', err);
-        Alert.alert('Error', 'No se pudieron cargar las secciones');
+        console.error("Error al obtener servicios", err);
+        Alert.alert("Error", "No se pudieron cargar las secciones");
       } finally {
         setLoading(false);
       }
@@ -112,7 +116,9 @@ export default function SectionsScreen() {
       Animated.timing(sheetY, {
         toValue: detailsVisible ? 0 : 40,
         duration: detailsVisible ? 220 : 180,
-        easing: detailsVisible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+        easing: detailsVisible
+          ? Easing.out(Easing.cubic)
+          : Easing.in(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(overlayOpacity, {
@@ -138,9 +144,14 @@ export default function SectionsScreen() {
       setSubmittingServiceId(null);
       setDetailsVisible(false);
       Alert.alert(
-        'Tiempo de espera agotado',
-        'No se pudo completar la operación. Vuelve a intentarlo.',
-        [{ text: 'Aceptar', onPress: () => navigation.replace('Welcome' as any) }]
+        "Tiempo de espera agotado",
+        "No se pudo completar la operación. Vuelve a intentarlo.",
+        [
+          {
+            text: "Aceptar",
+            onPress: () => navigation.replace("Welcome" as any),
+          },
+        ]
       );
     }, SUBMIT_TIMEOUT_MS);
   };
@@ -157,19 +168,19 @@ export default function SectionsScreen() {
     const parent = navigation.getParent?.();
     if (parent) {
       try {
-        (parent as any).navigate('Home');
+        (parent as any).navigate("Home");
         return;
       } catch {}
     }
     try {
       (navigation as any).reset({
         index: 0,
-        routes: [{ name: 'Home' }],
+        routes: [{ name: "Home" }],
       });
     } catch {
       (navigation as any).reset({
         index: 0,
-        routes: [{ name: 'Welcome' }],
+        routes: [{ name: "Welcome" }],
       });
     }
   }, [detailsVisible, submittingServiceId, navigation]);
@@ -182,12 +193,14 @@ export default function SectionsScreen() {
       setSubmittingServiceId(section.idService);
       startSafetyTimer();
 
-      const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
+      const idempotencyKey = `${sessionId || "nosession"}:${dpi || "nodpi"}:${
+        section.idService
+      }`;
 
       const payload: any = {
         name,
         idService: section.idService,
-        locationId: 'sucursal-central-01',
+        locationId: "sucursal-central-01",
         idempotencyKey,
       };
       if (dpi) payload.dpi = dpi;
@@ -198,13 +211,16 @@ export default function SectionsScreen() {
       clearSafetyTimer();
       setSubmittingServiceId(null);
 
-      navigation.navigate('Result' as any, { ticketInfo });
+      navigation.navigate("Result" as any, { ticketInfo });
     } catch (error: any) {
-      console.error('Error al registrar ticket:', error?.response?.data || error?.message || error);
+      console.error(
+        "Error al registrar ticket:",
+        error?.response?.data || error?.message || error
+      );
       if (!isMountedRef.current) return;
       clearSafetyTimer();
       setSubmittingServiceId(null);
-      Alert.alert('Error', 'No se pudo registrar el ticket.');
+      Alert.alert("Error", "No se pudo registrar el ticket.");
     }
   };
 
@@ -222,9 +238,9 @@ export default function SectionsScreen() {
   };
 
   const splitDesc = (desc?: string) =>
-    (desc || '')
-      .split(',')
-      .map(s => s.trim())
+    (desc || "")
+      .split(",")
+      .map((s) => s.trim())
       .filter(Boolean);
 
   const renderPreviewChips = (desc?: string, onOpenMore?: () => void) => {
@@ -232,7 +248,11 @@ export default function SectionsScreen() {
     if (parts.length === 0) {
       if (!desc) return null;
       return (
-        <Text style={styles.descFallback} numberOfLines={2} ellipsizeMode="tail">
+        <Text
+          style={styles.descFallback}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
           {desc}
         </Text>
       );
@@ -269,26 +289,19 @@ export default function SectionsScreen() {
     >
       {/* Botón regresar: píldora visible con texto */}
       <TouchableOpacity
-        style={[styles.backButton, { top: insets.top + 8 }]}
+        style={styles.backButton}
         onPress={() => {
-          if (submittingServiceId !== null) return;
+          bump();
           safeBack();
         }}
-        accessibilityLabel="Regresar"
-        activeOpacity={0.85}
-        disabled={submittingServiceId !== null}
-        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
       >
-        <View style={styles.backPill}>
-          <FontAwesome5 name="arrow-left" size={18} color="#0f172a" />
-          <Text style={styles.backLabel}>Regresar</Text>
-        </View>
+        <FontAwesome5 name="arrow-left" size={24} color="#fff" />
       </TouchableOpacity>
 
       <MotiView
         from={{ opacity: 0, translateY: -20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 700 }}
+        transition={{ type: "timing", duration: 700 }}
       >
         <Text style={styles.title}>Seleccione una sección</Text>
       </MotiView>
@@ -306,7 +319,7 @@ export default function SectionsScreen() {
             <MotiView
               from={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'timing', delay: index * 100 }}
+              transition={{ type: "timing", delay: index * 100 }}
             >
               <TouchableOpacity
                 style={[
@@ -317,11 +330,20 @@ export default function SectionsScreen() {
                 activeOpacity={0.9}
                 disabled={disabled}
               >
-                <FontAwesome5 name="chevron-right" size={18} color="#fff" style={styles.icon} />
+                <FontAwesome5
+                  name="chevron-right"
+                  size={18}
+                  color="#fff"
+                  style={styles.icon}
+                />
                 <Text style={styles.cardTitle}>{item.name}</Text>
 
-                <View style={{ width: '100%', marginTop: 8, alignItems: 'center' }}>
-                  {renderPreviewChips(item.description, () => openDetails(item))}
+                <View
+                  style={{ width: "100%", marginTop: 8, alignItems: "center" }}
+                >
+                  {renderPreviewChips(item.description, () =>
+                    openDetails(item)
+                  )}
                 </View>
 
                 <TouchableOpacity
@@ -336,7 +358,9 @@ export default function SectionsScreen() {
                 {isSubmittingThis && (
                   <View style={styles.inlineLoading}>
                     <ActivityIndicator size="small" color="#fff" />
-                    <Text style={styles.inlineLoadingText}>Generando ticket…</Text>
+                    <Text style={styles.inlineLoadingText}>
+                      Generando ticket…
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -352,8 +376,14 @@ export default function SectionsScreen() {
         animationType="none"
         onRequestClose={closeDetails}
       >
-        <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
-        <TouchableOpacity style={StyleSheet.absoluteFillObject as any} activeOpacity={1} onPress={closeDetails} />
+        <Animated.View
+          style={[styles.modalOverlay, { opacity: overlayOpacity }]}
+        />
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject as any}
+          activeOpacity={1}
+          onPress={closeDetails}
+        />
 
         <View pointerEvents="box-none" style={styles.sheetContainer}>
           <Animated.View
@@ -379,7 +409,7 @@ export default function SectionsScreen() {
 
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle} numberOfLines={1}>
-                    {detailsService?.name || 'Detalles'}
+                    {detailsService?.name || "Detalles"}
                   </Text>
                   <TouchableOpacity
                     onPress={closeDetails}
@@ -399,14 +429,14 @@ export default function SectionsScreen() {
                   showsVerticalScrollIndicator
                 >
                   {(() => {
-                    const parts = (detailsService?.description || '')
-                      .split(',')
-                      .map(s => s.trim())
+                    const parts = (detailsService?.description || "")
+                      .split(",")
+                      .map((s) => s.trim())
                       .filter(Boolean);
                     if (parts.length === 0) {
                       return (
                         <Text style={styles.sheetDescText}>
-                          {detailsService?.description || 'Sin descripción.'}
+                          {detailsService?.description || "Sin descripción."}
                         </Text>
                       );
                     }
@@ -439,7 +469,11 @@ export default function SectionsScreen() {
       </Modal>
 
       {/* Overlay global de carga */}
-      <Modal visible={submittingServiceId !== null} transparent animationType="fade">
+      <Modal
+        visible={submittingServiceId !== null}
+        transparent
+        animationType="fade"
+      >
         <View style={styles.globalOverlay}>
           <View style={styles.globalLoaderCard}>
             <ActivityIndicator size="large" />
@@ -459,82 +493,82 @@ const styles = StyleSheet.create({
 
   // Back pill
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     zIndex: 20,
   },
   backPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
     borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 6,
     elevation: 6,
   },
   backLabel: {
-    color: '#0f172a',
+    color: "#0f172a",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: 8,
   },
 
   title: {
     fontSize: 30,
-    fontWeight: '700',
-    color: '#ffffff',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#ffffff",
+    textAlign: "center",
     marginBottom: 40,
     letterSpacing: 0.3,
   },
   listContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingBottom: 40,
   },
   cardButton: {
     width: width * 0.9,
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 16,
     marginVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: Platform.OS === 'ios' ? 0.15 : 0.18,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: Platform.OS === "ios" ? 0.15 : 0.18,
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,
     elevation: 6,
-    position: 'relative',
+    position: "relative",
   },
   icon: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
-    top: '50%',
+    top: "50%",
     transform: [{ translateY: -9 }],
     opacity: 0.9,
   },
   cardTitle: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
     letterSpacing: 0.2,
   },
 
   chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8 as any,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   chip: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.24)",
     borderWidth: 1,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -543,88 +577,93 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   moreChip: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: "rgba(255,255,255,0.25)",
   },
   chipText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.2,
   },
   descFallback: {
-    color: '#e5e7eb',
+    color: "#e5e7eb",
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   infoButton: {
-    position: 'absolute',
+    position: "absolute",
     right: 12,
     top: 12,
     padding: 6,
   },
 
   inlineLoading: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 12,
     right: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8 as any,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: "rgba(0,0,0,0.18)",
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 12,
   },
   inlineLoadingText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,12,18,0.55)',
+    backgroundColor: "rgba(10,12,18,0.55)",
   },
   sheetContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 16,
   },
   sheet: {
     borderRadius: 24,
-    shadowColor: '#000',
-    shadowOpacity: Platform.OS === 'ios' ? 0.25 : 0.22,
+    shadowColor: "#000",
+    shadowOpacity: Platform.OS === "ios" ? 0.25 : 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: COL_NAVY,
   },
   sheetGradient: {
     flex: 1,
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
-  handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 4 },
+  handleWrap: { alignItems: "center", paddingTop: 10, paddingBottom: 4 },
   handle: {
     width: 48,
     height: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: "rgba(255,255,255,0.5)",
   },
   sheetHeader: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sheetTitle: { color: '#ffffff', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
-  sheetCloseBtn: { position: 'absolute', right: 12, top: 10, padding: 6 },
+  sheetTitle: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sheetCloseBtn: { position: "absolute", right: 12, top: 10, padding: 6 },
   headerDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
 
   sheetBody: {
@@ -633,18 +672,18 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   sheetDescText: {
-    color: '#ffffff',
+    color: "#ffffff",
     opacity: 0.95,
     fontSize: 16,
     lineHeight: 22,
   },
   modalChipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   modalChip: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.28)",
     borderWidth: 1,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -653,52 +692,52 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalChipText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14.5,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   sheetFooter: {
     paddingHorizontal: 16,
     paddingBottom: 18,
     paddingTop: 10,
-    borderTopColor: 'rgba(255,255,255,0.18)',
+    borderTopColor: "rgba(255,255,255,0.18)",
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   modalCloseBtn: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
     paddingVertical: 14,
     paddingHorizontal: 22,
     borderRadius: 14,
     minWidth: 160,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: "rgba(255,255,255,0.28)",
   },
   modalCloseText: {
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     fontSize: 16,
     letterSpacing: 0.3,
   },
 
   globalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   globalLoaderCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 14,
     minWidth: 180,
-    alignItems: 'center',
+    alignItems: "center",
   },
   globalLoaderText: {
     marginTop: 10,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
 });
