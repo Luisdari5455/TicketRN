@@ -65,7 +65,6 @@ function validateCUI(raw: string): { ok: true; deptoName: string; muniNum: numbe
   return { ok: true, deptoName: DEPARTAMENTOS[depto - 1], muniNum: muni };
 }
 
-// Heurística para separar nombre(s) y apellido(s)
 function splitFullName(full: string) {
   const parts = full.trim().replace(/\s+/g, " ").split(" ");
   if (parts.length === 1) return { nombre: parts[0], apellido: "" };
@@ -73,11 +72,11 @@ function splitFullName(full: string) {
   return { nombre: parts.slice(0, -1).join(" "), apellido: parts.slice(-1).join(" ") };
 }
 
-// 🔒 Solo letras (todas), tildes/ñ y espacios (no hay “tipo string” de teclado; esto evita dígitos)
+// Solo letras/espacios (incluye tildes y ñ)
 const sanitizeName = (raw: string) =>
   raw
     .normalize('NFC')
-    .replace(/[^\p{L}\p{M}\s]/gu, '') // quita todo lo que NO sea letra/tilde/espacio
+    .replace(/[^\p{L}\p{M}\s]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^\s+/g, '')
     .slice(0, 60);
@@ -89,9 +88,9 @@ export default function DpiScreen() {
   const [dpi, setDpi] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
-  const [locked, setLocked] = useState(false); // bloquea inputs si autocompletó
-  const lastQueried = useRef<string>("");      // evita re-consulta misma DPI
-  const autoFillDpiRef = useRef<string | null>(null); // DPI que disparó autocompletado
+  const [locked, setLocked] = useState(false);
+  const lastQueried = useRef<string>("");
+  const autoFillDpiRef = useRef<string | null>(null);
 
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -116,23 +115,21 @@ export default function DpiScreen() {
     }
   }, [locked]);
 
-  // Back seguro
   const safeBack = useCallback(() => {
     if (navigation.canGoBack?.() && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
     try {
-      navigation.replace('Welcome');
+      navigation.replace('Welcome' as any);
     } catch {
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Welcome' as keyof RootStackParamList } as any],
-      });
+        routes: [{ name: 'Welcome' as any }],
+      } as any);
     }
   }, [navigation]);
 
-  // Limpia al enfocar y al salir
   useFocusEffect(
     useCallback(() => {
       clearAll();
@@ -140,24 +137,22 @@ export default function DpiScreen() {
     }, [clearAll])
   );
 
-  // Inactividad
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
       clearAll();
       Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome");
+      navigation.replace("Welcome" as any);
     },
   });
 
-  // Consulta cliente por DPI cuando hay 13 dígitos válidos
   useEffect(() => {
     const run = async () => {
       if (dpi.length !== 13) return;
       const v = validateCUI(dpi);
       if (!v.ok) return;
 
-      if (lastQueried.current === dpi) return; // ya lo buscamos
+      if (lastQueried.current === dpi) return;
       lastQueried.current = dpi;
 
       try {
@@ -179,11 +174,10 @@ export default function DpiScreen() {
       }
     };
 
-    const t = setTimeout(run, 200); // debounce
+    const t = setTimeout(run, 200);
     return () => clearTimeout(t);
   }, [dpi]);
 
-  // Si DPI deja de ser válido o cambia respecto al que autocompletó, limpiar nombres
   useEffect(() => {
     if (dpi.length < 13) {
       clearAutoFilled();
@@ -193,6 +187,7 @@ export default function DpiScreen() {
     }
   }, [dpi, clearAutoFilled]);
 
+  const dpiRef = useRef<TextInput>(null);
   const nombreRef = useRef<TextInput>(null);
   const apellidoRef = useRef<TextInput>(null);
 
@@ -207,26 +202,37 @@ export default function DpiScreen() {
     } else if (!nombre.trim() || !apellido.trim()) {
       Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
     } else {
-      navigation.navigate("Sections", {
+      navigation.navigate("Sections" as any, {
         dpi: dpi.replace(/\D/g, ""),
         name: `${nombre.trim()} ${apellido.trim()}`,
         sessionId,
-      });
+      } as any);
     }
   };
 
+  // === Posición dinámica de la flecha (igual a tu flecha roja) ===
+  const [arrowTop, setArrowTop] = useState<number>(insets.top + 120); // valor seguro inicial
+  const MIN_TOP = insets.top + 110;   // evita hotspot 100x100
+  const SHIFT = 56;                   // cuánto arriba del primer input quieres la flecha
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      {/* Contenedor que capta interacción sin bloquear hijos */}
       <LinearGradient
         colors={['#104c80','#104c80','#104c80','#0f172a']}
         style={styles.container}
         onTouchStart={bump}
       >
-        {/* Botón de regreso grande y visible */}
-           <TouchableOpacity style={styles.backButton} onPress={() => { bump(); safeBack(); }}>
-                   <FontAwesome5 name="arrow-left" size={24} color="#fff" />
-                 </TouchableOpacity>
+        {/* Flecha blanca simple, colocada EXACTA por encima del primer input */}
+        <TouchableOpacity
+          style={[styles.backButton, { top: Math.max(MIN_TOP, arrowTop) }]}
+          onPress={() => { bump(); safeBack(); }}
+          activeOpacity={0.85}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Regresar"
+        >
+          <FontAwesome5 name="arrow-left" size={24} color="#fff" />
+        </TouchableOpacity>
 
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
@@ -240,7 +246,7 @@ export default function DpiScreen() {
 
           {/* DPI: SOLO NÚMEROS (13) */}
           <TextInput
-            ref={nombreRef}
+            ref={dpiRef}
             style={styles.input}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -259,18 +265,23 @@ export default function DpiScreen() {
             contextMenuHidden
             autoCorrect={false}
             returnKeyType="next"
-            onSubmitEditing={() => apellidoRef.current?.focus()}
+            onSubmitEditing={() => nombreRef.current?.focus()}
+            onLayout={(e) => {
+              const y = e.nativeEvent.layout.y;
+              setArrowTop(y - SHIFT);
+            }}
           />
 
-          {/* NOMBRE: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
+          {/* NOMBRE */}
           <TextInput
+            ref={nombreRef}
             style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
             placeholder="Nombre"
             value={nombre}
             onChangeText={text => setNombre(sanitizeName(text))}
             placeholderTextColor="#9CA3AF"
             keyboardType="default"
-            inputMode="text"            // sugiere teclado de texto
+            inputMode="text"
             autoCapitalize="words"
             autoCorrect={false}
             importantForAutofill="no"
@@ -283,7 +294,7 @@ export default function DpiScreen() {
             onSubmitEditing={() => apellidoRef.current?.focus()}
           />
 
-          {/* APELLIDO: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
+          {/* APELLIDO */}
           <TextInput
             ref={apellidoRef}
             style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
@@ -335,30 +346,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
   innerContainer: { justifyContent: "center", alignItems: "center" },
 
-  // Back pill
+  // Flecha blanca simple
   backButton: {
     position: "absolute",
-    left: 16,
-    zIndex: 50,
-  },
-  backPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  backLabel: {
-    color: "#0f172a",
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
+    left: 20,
+    zIndex: 10,
+    padding: 10,
   },
 
   icon: { marginBottom: 20 },
