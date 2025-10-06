@@ -10,7 +10,6 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
-  Pressable,
   Animated,
   Easing,
   Platform,
@@ -24,10 +23,9 @@ import { MotiView } from 'moti';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { getServices, registerTicket } from '../services/ticketService';
 import type { RouteProp } from '@react-navigation/native';
-
-// ✅ NUEVOS IMPORTS
 import { useIdleReset } from '../hooks/useIdleReset';
 import { useKeepAwake } from 'expo-keep-awake';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Sections'>;
 type SectionsRouteProp = RouteProp<RootStackParamList, 'Sections'>;
@@ -40,23 +38,19 @@ interface ServiceType {
 
 const { width, height } = Dimensions.get('window');
 
-// Paleta (coherente con lo que vienes usando)
 const COL_CHAMBRAY = '#3b618c';
 const COL_DEEP = '#104c80';
 const COL_NAVY = '#0f172a';
 
-// Tamaño del popup centrado
 const SHEET_HEIGHT = Math.min(height * 0.68, 560);
 const MAX_SHEET_WIDTH = 720;
-
-// Timeout duro para evitar loops de espera (ms)
 const SUBMIT_TIMEOUT_MS = 15000;
 
 export default function SectionsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<SectionsRouteProp>();
+  const insets = useSafeAreaInsets();
 
-  // ✅ ahora leemos también sessionId
   const { dpi, name, sessionId } = route.params || ({} as any);
 
   const [sections, setSections] = useState<ServiceType[]>([]);
@@ -65,42 +59,36 @@ export default function SectionsScreen() {
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [detailsService, setDetailsService] = useState<ServiceType | null>(null);
 
-  // Estado de envío para bloquear UI y evitar dobles taps
   const [submittingServiceId, setSubmittingServiceId] = useState<number | null>(null);
   const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
-  // Animaciones para popup centrado
-  const sheetY = useRef(new Animated.Value(40)).current; // slide-in
+  const sheetY = useRef(new Animated.Value(40)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
-  // ✅ Mantener pantalla encendida (kiosko)
   useKeepAwake();
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      // limpia cualquier timer pendiente al desmontar
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
   }, []);
 
-  // ✅ Guardia de sesión: si no viene sessionId, vuelve a Home
   useEffect(() => {
     if (!sessionId) {
       Alert.alert('Sesión inválida', 'Vuelve a iniciar el registro.');
-      navigation.replace('Welcome');
+      navigation.replace('Welcome' as any);
     }
   }, [sessionId, navigation]);
 
-  // ✅ Inactividad: si no hay interacción, cerrar modal, limpiar y volver a Home
   const { bump } = useIdleReset({
-    timeoutMs: 60000, // 60s (ajústalo a tu necesidad)
+    timeoutMs: 60000,
     onTimeout: () => {
       setDetailsVisible(false);
       Alert.alert('Sesión reiniciada', 'Sin actividad, se reinició el flujo.');
-      navigation.replace('Welcome');
+      navigation.replace('Welcome' as any);
     },
   });
 
@@ -147,51 +135,44 @@ export default function SectionsScreen() {
     clearSafetyTimer();
     safetyTimerRef.current = setTimeout(() => {
       if (!isMountedRef.current) return;
-      // Si el server está muy lento o no responde, protegemos la UX
       setSubmittingServiceId(null);
       setDetailsVisible(false);
       Alert.alert(
         'Tiempo de espera agotado',
         'No se pudo completar la operación. Vuelve a intentarlo.',
-        [{ text: 'Aceptar', onPress: () => navigation.replace('Welcome') }]
+        [{ text: 'Aceptar', onPress: () => navigation.replace('Welcome' as any) }]
       );
     }, SUBMIT_TIMEOUT_MS);
   };
 
-  // ---------- ✅ Back robusto ----------
   const safeBack = useCallback(() => {
-    // 0) Si el modal está abierto y NO estamos enviando, primero ciérralo
     if (detailsVisible && submittingServiceId === null) {
       setDetailsVisible(false);
       return;
     }
-    // 1) Si hay historial en este stack
-    if (navigation.canGoBack && navigation.canGoBack()) {
+    if (navigation.canGoBack?.() && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    // 2) Intentar navegar en el padre a 'Home'
     const parent = navigation.getParent?.();
     if (parent) {
       try {
-        parent.navigate('Home' as never);
+        (parent as any).navigate('Home');
         return;
-      } catch (_) {}
+      } catch {}
     }
-    // 3) Último recurso: reset del stack
     try {
-      navigation.reset({
+      (navigation as any).reset({
         index: 0,
-        routes: [{ name: 'Home' as never }],
+        routes: [{ name: 'Home' }],
       });
     } catch {
-      navigation.reset({
+      (navigation as any).reset({
         index: 0,
-        routes: [{ name: 'Welcome' as never }],
+        routes: [{ name: 'Welcome' }],
       });
     }
   }, [detailsVisible, submittingServiceId, navigation]);
-  // -------------------------------------
 
   const handleSelect = async (section: ServiceType) => {
     if (submittingServiceId !== null) return;
@@ -203,7 +184,6 @@ export default function SectionsScreen() {
 
       const idempotencyKey = `${sessionId || 'nosession'}:${dpi || 'nodpi'}:${section.idService}`;
 
-      // ⬇️ NO mandes dpi si no existe
       const payload: any = {
         name,
         idService: section.idService,
@@ -218,7 +198,7 @@ export default function SectionsScreen() {
       clearSafetyTimer();
       setSubmittingServiceId(null);
 
-      navigation.navigate('Result', { ticketInfo });
+      navigation.navigate('Result' as any, { ticketInfo });
     } catch (error: any) {
       console.error('Error al registrar ticket:', error?.response?.data || error?.message || error);
       if (!isMountedRef.current) return;
@@ -229,15 +209,15 @@ export default function SectionsScreen() {
   };
 
   const openDetails = (service: ServiceType) => {
-    if (submittingServiceId !== null) return; // no abrir mientras enviamos
-    bump(); // ✅
+    if (submittingServiceId !== null) return;
+    bump();
     setDetailsService(service);
     setDetailsVisible(true);
   };
 
   const closeDetails = () => {
-    if (submittingServiceId !== null) return; // bloquear cierre durante envío
-    bump(); // ✅
+    if (submittingServiceId !== null) return;
+    bump();
     setDetailsVisible(false);
   };
 
@@ -282,203 +262,227 @@ export default function SectionsScreen() {
   };
 
   return (
-    // ✅ Cualquier toque en pantalla reinicia el timer
-    <Pressable style={{ flex: 1 }} onTouchStart={bump}>
-      <LinearGradient colors={[COL_DEEP, COL_DEEP, COL_DEEP, COL_NAVY]} style={styles.container}>
-        {/* ← Botón para regresar */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            if (submittingServiceId !== null) return; // bloquea atrás durante envío
-            bump(); // ✅
-            safeBack();
-          }}
-          accessibilityLabel="Regresar"
-          activeOpacity={0.85}
-          disabled={submittingServiceId !== null}
-        >
-          <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
-        </TouchableOpacity>
+    <LinearGradient
+      colors={[COL_DEEP, COL_DEEP, COL_DEEP, COL_NAVY]}
+      style={[styles.container, { paddingTop: insets.top + 12 }]}
+      onTouchStart={bump}
+    >
+      {/* Botón regresar: píldora visible con texto */}
+      <TouchableOpacity
+        style={[styles.backButton, { top: insets.top + 8 }]}
+        onPress={() => {
+          if (submittingServiceId !== null) return;
+          safeBack();
+        }}
+        accessibilityLabel="Regresar"
+        activeOpacity={0.85}
+        disabled={submittingServiceId !== null}
+        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+      >
+        <View style={styles.backPill}>
+          <FontAwesome5 name="arrow-left" size={18} color="#0f172a" />
+          <Text style={styles.backLabel}>Regresar</Text>
+        </View>
+      </TouchableOpacity>
 
-        <MotiView
-          from={{ opacity: 0, translateY: -20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 700 }}
-        >
-          <Text style={styles.title}>Seleccione una sección</Text>
-        </MotiView>
+      <MotiView
+        from={{ opacity: 0, translateY: -20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 700 }}
+      >
+        <Text style={styles.title}>Seleccione una sección</Text>
+      </MotiView>
 
-        <FlatList
-          data={sections}
-          keyExtractor={(item) => item?.idService?.toString()}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => {
-            const disabled = submittingServiceId !== null;
-            const isSubmittingThis = submittingServiceId === item.idService;
+      <FlatList
+        data={sections}
+        keyExtractor={(item) => item?.idService?.toString()}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item, index }) => {
+          const disabled = submittingServiceId !== null;
+          const isSubmittingThis = submittingServiceId === item.idService;
 
-            return (
-              <MotiView
-                from={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: 'timing', delay: index * 100 }}
+          return (
+            <MotiView
+              from={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'timing', delay: index * 100 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.cardButton,
+                  disabled && { opacity: isSubmittingThis ? 1 : 0.6 },
+                ]}
+                onPress={() => handleSelect(item)}
+                activeOpacity={0.9}
+                disabled={disabled}
               >
+                <FontAwesome5 name="chevron-right" size={18} color="#fff" style={styles.icon} />
+                <Text style={styles.cardTitle}>{item.name}</Text>
+
+                <View style={{ width: '100%', marginTop: 8, alignItems: 'center' }}>
+                  {renderPreviewChips(item.description, () => openDetails(item))}
+                </View>
+
                 <TouchableOpacity
-                  style={[
-                    styles.cardButton,
-                    disabled && { opacity: isSubmittingThis ? 1 : 0.6 },
-                  ]}
-                  onPress={() => handleSelect(item)}
-                  activeOpacity={0.9}
+                  style={styles.infoButton}
+                  onPress={() => openDetails(item)}
+                  activeOpacity={0.85}
                   disabled={disabled}
                 >
-                  <FontAwesome5 name="chevron-right" size={18} color="#fff" style={styles.icon} />
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-
-                  <View style={{ width: '100%', marginTop: 8, alignItems: 'center' }}>
-                    {renderPreviewChips(item.description, () => openDetails(item))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.infoButton}
-                    onPress={() => openDetails(item)}
-                    activeOpacity={0.85}
-                    disabled={disabled}
-                  >
-                    <FontAwesome5 name="info-circle" size={18} color="#e2e8f0" />
-                  </TouchableOpacity>
-
-                  {/* Indicador inline en la tarjeta que está enviando */}
-                  {isSubmittingThis && (
-                    <View style={styles.inlineLoading}>
-                      <ActivityIndicator size="small" color="#fff" />
-                      <Text style={styles.inlineLoadingText}>Generando ticket…</Text>
-                    </View>
-                  )}
+                  <FontAwesome5 name="info-circle" size={18} color="#e2e8f0" />
                 </TouchableOpacity>
-              </MotiView>
-            );
-          }}
-        />
 
-        {/* ===== Popup CENTRADO ===== */}
-        <Modal
-          visible={detailsVisible}
-          transparent
-          animationType="none"
-          onRequestClose={closeDetails}
-        >
-          <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeDetails} />
+                {isSubmittingThis && (
+                  <View style={styles.inlineLoading}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.inlineLoadingText}>Generando ticket…</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </MotiView>
+          );
+        }}
+      />
 
-          <View pointerEvents="box-none" style={styles.sheetContainer}>
-            <Animated.View
-              style={[
-                styles.sheet,
-                {
-                  transform: [{ translateY: sheetY }],
-                  height: SHEET_HEIGHT,
-                  width: Math.min(width * 0.92, MAX_SHEET_WIDTH),
-                },
-              ]}
+      {/* ===== Popup CENTRADO ===== */}
+      <Modal
+        visible={detailsVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeDetails}
+      >
+        <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
+        <TouchableOpacity style={StyleSheet.absoluteFillObject as any} activeOpacity={1} onPress={closeDetails} />
+
+        <View pointerEvents="box-none" style={styles.sheetContainer}>
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                transform: [{ translateY: sheetY }],
+                height: SHEET_HEIGHT,
+                width: Math.min(width * 0.92, MAX_SHEET_WIDTH),
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={[COL_CHAMBRAY, COL_CHAMBRAY, COL_CHAMBRAY]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.sheetGradient}
             >
-              <LinearGradient
-                colors={[COL_CHAMBRAY, COL_CHAMBRAY, COL_CHAMBRAY]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.sheetGradient}
-              >
-                <SafeAreaView style={{ flex: 1 }}>
-                  {/* Grip */}
-                  <View style={styles.handleWrap}>
-                    <View style={styles.handle} />
-                  </View>
+              <SafeAreaView style={{ flex: 1 }}>
+                <View style={styles.handleWrap}>
+                  <View style={styles.handle} />
+                </View>
 
-                  {/* Header */}
-                  <View style={styles.sheetHeader}>
-                    <Text style={styles.sheetTitle} numberOfLines={1}>
-                      {detailsService?.name || 'Detalles'}
-                    </Text>
-                    <TouchableOpacity onPress={closeDetails} style={styles.sheetCloseBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      disabled={submittingServiceId !== null}
-                    >
-                      <FontAwesome5 name="times" size={18} color="#ffffff" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.headerDivider} />
-
-                  {/* Contenido */}
-                  <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={styles.sheetBody}
-                    showsVerticalScrollIndicator
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle} numberOfLines={1}>
+                    {detailsService?.name || 'Detalles'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closeDetails}
+                    style={styles.sheetCloseBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    disabled={submittingServiceId !== null}
                   >
-                    {(() => {
-                      const parts = splitDesc(detailsService?.description);
-                      if (parts.length === 0) {
-                        return (
-                          <Text style={styles.sheetDescText}>
-                            {detailsService?.description || 'Sin descripción.'}
-                          </Text>
-                        );
-                      }
+                    <FontAwesome5 name="times" size={18} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.headerDivider} />
+
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.sheetBody}
+                  showsVerticalScrollIndicator
+                >
+                  {(() => {
+                    const parts = (detailsService?.description || '')
+                      .split(',')
+                      .map(s => s.trim())
+                      .filter(Boolean);
+                    if (parts.length === 0) {
                       return (
-                        <View style={styles.modalChipsWrap}>
-                          {parts.map((p, idx) => (
-                            <View key={`${p}-${idx}`} style={styles.modalChip}>
-                              <Text style={styles.modalChipText}>{p}</Text>
-                            </View>
-                          ))}
-                        </View>
+                        <Text style={styles.sheetDescText}>
+                          {detailsService?.description || 'Sin descripción.'}
+                        </Text>
                       );
-                    })()}
-                  </ScrollView>
+                    }
+                    return (
+                      <View style={styles.modalChipsWrap}>
+                        {parts.map((p, idx) => (
+                          <View key={`${p}-${idx}`} style={styles.modalChip}>
+                            <Text style={styles.modalChipText}>{p}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })()}
+                </ScrollView>
 
-                  {/* Footer */}
-                  <View style={styles.sheetFooter}>
-                    <TouchableOpacity
-                      style={styles.modalCloseBtn}
-                      onPress={closeDetails}
-                      activeOpacity={0.9}
-                      disabled={submittingServiceId !== null}
-                    >
-                      <Text style={styles.modalCloseText}>Cerrar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </SafeAreaView>
-              </LinearGradient>
-            </Animated.View>
-          </View>
-        </Modal>
+                <View style={styles.sheetFooter}>
+                  <TouchableOpacity
+                    style={styles.modalCloseBtn}
+                    onPress={closeDetails}
+                    activeOpacity={0.9}
+                    disabled={submittingServiceId !== null}
+                  >
+                    <Text style={styles.modalCloseText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
 
-        {/* Overlay global opcional (si prefieres en vez del inline) */}
-        <Modal visible={submittingServiceId !== null} transparent animationType="fade">
-          <View style={styles.globalOverlay}>
-            <View style={styles.globalLoaderCard}>
-              <ActivityIndicator size="large" />
-              <Text style={styles.globalLoaderText}>Procesando…</Text>
-            </View>
+      {/* Overlay global de carga */}
+      <Modal visible={submittingServiceId !== null} transparent animationType="fade">
+        <View style={styles.globalOverlay}>
+          <View style={styles.globalLoaderCard}>
+            <ActivityIndicator size="large" />
+            <Text style={styles.globalLoaderText}>Procesando…</Text>
           </View>
-        </Modal>
-      </LinearGradient>
-    </Pressable>
+        </View>
+      </Modal>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
     paddingHorizontal: 20,
   },
+
+  // Back pill
   backButton: {
     position: 'absolute',
-    top: Platform.select({ ios: 18, android: 16 }) as number,
     left: 16,
     zIndex: 20,
-    padding: 10,
   },
+  backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  backLabel: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+
   title: {
     fontSize: 30,
     fontWeight: '700',
@@ -560,7 +564,6 @@ const styles = StyleSheet.create({
     padding: 6,
   },
 
-  // Inline loader sobre la tarjeta seleccionada
   inlineLoading: {
     position: 'absolute',
     bottom: 12,
@@ -679,7 +682,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Overlay global
   globalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

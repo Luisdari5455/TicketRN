@@ -7,7 +7,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -22,37 +21,41 @@ import Animated, {
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
 import { useIdleReset } from '../hooks/useIdleReset';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SinDPI'>;
 
 export default function SinDpiScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
+
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const scale = useSharedValue(1);
 
-  // ID de sesión opcional
+  // ID de sesión
   const sessionId = useMemo(
     () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
     []
   );
 
-  // === Sanitizador: solo letras (todas las lenguas), tildes, apóstrofo, guion, espacios ===
-  // \p{L} = letras Unicode, \p{M} = marcas (tildes combinadas)
+  // Sanitizador: solo letras/tildes/espacios/apóstrofo/guion
   const sanitize = useCallback((raw: string) => {
     return raw
-      .normalize('NFC')                                // normaliza tildes
-      .replace(/[^\p{L}\p{M}\s'’-]/gu, '')            // quita todo lo que NO sea letra/tilde/espacio/'/–
-      .replace(/\s{2,}/g, ' ')                         // colapsa espacios múltiples
-      .replace(/^\s+/g, '')                            // sin espacios al inicio
-      .slice(0, 60);                                   // límite razonable (opcional)
+      .normalize('NFC')
+      .replace(/[^\p{L}\p{M}\s'’-]/gu, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^\s+/g, '')
+      .slice(0, 60);
   }, []);
+
+  const onlyLetters = /^[\p{L}\p{M}\s'’-]+$/u;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  // Limpia al entrar/enfocar la pantalla
+  // Limpia al enfocar
   useFocusEffect(
     useCallback(() => {
       setNombre('');
@@ -61,144 +64,158 @@ export default function SinDpiScreen() {
     }, [])
   );
 
-  // Inactividad: reinicia
+  // Inactividad
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
       setNombre('');
       setApellido('');
       Alert.alert('Sesión reiniciada', 'Sin actividad, se limpió el formulario.');
-      
       navigation.replace('Welcome');
     },
   });
 
   const handleNext = () => {
-    if (!nombre.trim() || !apellido.trim()) {
+    const name = nombre.trim();
+    const last = apellido.trim();
+
+    if (!name || !last) {
       Alert.alert('Datos incompletos', 'Por favor, ingrese su nombre y apellido');
       return;
     }
+    if (!onlyLetters.test(name) || !onlyLetters.test(last)) {
+      Alert.alert('Entrada inválida', 'Sólo se permiten letras y espacios.');
+      return;
+    }
+
     navigation.navigate('Sections', {
-      name: `${nombre.trim()} ${apellido.trim()}`,
+      name: `${name} ${last}`,
       sessionId,
-    } as any);
+    });
   };
 
   const handleNombreChange = (text: string) => {
-    const clean = sanitize(text);
-    setNombre(clean);
+    setNombre(sanitize(text));
     bump();
   };
 
   const handleApellidoChange = (text: string) => {
-    const clean = sanitize(text);
-    setApellido(clean);
+    setApellido(sanitize(text));
     bump();
   };
 
-  // ---------- ✅ Back robusto ----------
-  const safeBack = () => {
-    // 1) Volver si hay historial en este stack
-    if (navigation.canGoBack && navigation.canGoBack()) {
+  // Back seguro
+  const safeBack = useCallback(() => {
+    if (navigation.canGoBack?.() && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-
-    // 2) Intentar navegar en el navegador padre (Tabs/Drawer) a 'Home'
-    const parent = navigation.getParent?.();
-    if (parent) {
-      try {
-        parent.navigate('Home' as never);
-        return;
-      } catch (_) {
-        // ignoramos y seguimos al reset
-      }
-    }
-
-    // 3) Último recurso: resetear este stack a 'Home' (o 'Welcome')
     try {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' as never }],
-      });
+      navigation.replace('Welcome');
     } catch {
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Welcome' as never }],
+        routes: [{ name: 'Welcome' as keyof RootStackParamList } as any],
       });
     }
-  };
-  // -------------------------------------
+  }, [navigation]);
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Captura de interacción global para reiniciar el timer */}
-      <Pressable style={{ flex: 1 }} onTouchStart={bump}>
-        <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.wrapper}>
-          {/* Flecha para regresar */}
-          <TouchableOpacity style={styles.backButton} onPress={() => { bump(); safeBack(); }}>
-            <FontAwesome5 name="arrow-left" size={24} color="#fff" />
-          </TouchableOpacity>
+      {/* Contenedor que capta interacción sin bloquear hijos */}
+      <LinearGradient
+        colors={['#104c80', '#104c80', '#104c80', '#0f172a']}
+        style={styles.wrapper}
+        onTouchStart={bump}
+      >
+        {/* Botón de regreso grande y visible */}
+        <TouchableOpacity
+          style={[styles.backButton, { top: insets.top + 8 }]}
+          onPress={() => {
+            bump();
+            safeBack();
+          }}
+          activeOpacity={0.75}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Regresar"
+        >
+          <View style={styles.backPill}>
+            <FontAwesome5 name="arrow-left" size={18} color="#0f172a" />
+            <Text style={styles.backLabel}>Regresar</Text>
+          </View>
+        </TouchableOpacity>
 
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 700 }}
-            style={styles.container}
-          >
-            <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
-            <Text style={styles.title}>Registro sin DPI</Text>
-            <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'timing', duration: 700 }}
+          style={styles.container}
+        >
+          <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
+          <Text style={styles.title}>Registro sin DPI</Text>
+          <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre"
-              placeholderTextColor="#9CA3AF"
-              value={nombre}
-              onChangeText={handleNombreChange}
-              keyboardType="default"          // no numérico
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="name"
-              contextMenuHidden={true}        // opcional: bloquea pegar/copiar
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Apellido"
-              placeholderTextColor="#9CA3AF"
-              value={apellido}
-              onChangeText={handleApellidoChange}
-              keyboardType="default"
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="familyName"
-              contextMenuHidden={true}        // opcional
-            />
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre"
+            placeholderTextColor="#9CA3AF"
+            value={nombre}
+            onChangeText={handleNombreChange}
+            keyboardType="default"
+            inputMode="text"
+            returnKeyType="next"
+            autoCapitalize="words"
+            autoCorrect={false}
+            importantForAutofill="no"
+            textContentType="name"
+            contextMenuHidden
+            maxLength={60}
+            onSubmitEditing={() => {
+              // opcional: enfocar el segundo input si usas ref
+            }}
+          />
 
-            <View style={styles.buttonWrapper}>
-              <Pressable
-                onPressIn={() => {
-                  scale.value = withSpring(0.95);
-                }}
-                onPressOut={() => {
-                  scale.value = withSpring(1);
-                  bump();
-                  handleNext();
-                }}
-              >
-                <Animated.View style={[styles.animatedButton, animatedStyle]}>
-                  <Text style={styles.buttonText}>Continuar</Text>
-                </Animated.View>
-              </Pressable>
-            </View>
-          </MotiView>
-        </LinearGradient>
-      </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="Apellido"
+            placeholderTextColor="#9CA3AF"
+            value={apellido}
+            onChangeText={handleApellidoChange}
+            keyboardType="default"
+            inputMode="text"
+            returnKeyType="done"
+            autoCapitalize="words"
+            autoCorrect={false}
+            importantForAutofill="no"
+            textContentType="familyName"
+            contextMenuHidden
+            maxLength={60}
+            onSubmitEditing={handleNext}
+          />
+
+          <View style={styles.buttonWrapper}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPressIn={() => {
+                scale.value = withSpring(0.95);
+              }}
+              onPressOut={() => {
+                scale.value = withSpring(1);
+                bump();
+                handleNext();
+              }}
+            >
+              <Animated.View style={[styles.animatedButton, animatedStyle]}>
+                <Text style={styles.buttonText}>Continuar</Text>
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        </MotiView>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -207,9 +224,38 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1 },
   container: { justifyContent: 'center', alignItems: 'center', padding: 24, flex: 1 },
   icon: { marginBottom: 20 },
-  backButton: { position: 'absolute', top: 40, left: 20, zIndex: 10, padding: 10 },
+
+  // Botón back
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 50,
+  },
+  backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8 as any, // RN <0.73 puede no tipar gap; visualmente funciona
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  backLabel: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // Textos
   title: { fontSize: 28, fontWeight: '800', color: '#ffffff', marginBottom: 10, textAlign: 'center' },
   subtitle: { fontSize: 16, color: '#e5e7eb', marginBottom: 30, textAlign: 'center', paddingHorizontal: 12 },
+
+  // Inputs
   input: {
     width: '90%',
     backgroundColor: '#fff',
@@ -227,6 +273,8 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+
+  // Botón continuar
   buttonWrapper: { width: '90%', borderRadius: 10, overflow: 'hidden' },
   animatedButton: {
     backgroundColor: '#1e40af',

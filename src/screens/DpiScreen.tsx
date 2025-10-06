@@ -6,7 +6,6 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   TouchableOpacity,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -21,8 +20,9 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { MotiView } from "moti";
-import { useIdleReset } from "../hooks/useIdleReset"; 
+import { useIdleReset } from "../hooks/useIdleReset";
 import { getClientByDpi } from "../services/ticketService";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "DPI">;
 
@@ -32,10 +32,7 @@ const DEPARTAMENTOS = [
   'Huehuetenango','Quiché','Baja Verapaz','Alta Verapaz','Petén','Izabal',
   'Zacapa','Chiquimula','Jalapa','Jutiapa'
 ];
-
-const MUNIS_POR_DEPTO = [
-  17, 8, 16, 16, 13, 14, 19, 8, 24, 21, 9, 30, 32, 21, 8, 17, 14, 5, 11, 11, 7, 17
-];
+const MUNIS_POR_DEPTO = [17,8,16,16,13,14,19,8,24,21,9,30,32,21,8,17,14,5,11,11,7,17];
 
 function validateCUI(raw: string): { ok: true; deptoName: string; muniNum: number } | { ok: false; reason: string } {
   const cuiRegExp = /^[0-9]{4}\s?[0-9]{5}\s?[0-9]{4}$/;
@@ -68,7 +65,7 @@ function validateCUI(raw: string): { ok: true; deptoName: string; muniNum: numbe
   return { ok: true, deptoName: DEPARTAMENTOS[depto - 1], muniNum: muni };
 }
 
-// Heurística simple para separar nombre(s) y apellido(s)
+// Heurística para separar nombre(s) y apellido(s)
 function splitFullName(full: string) {
   const parts = full.trim().replace(/\s+/g, " ").split(" ");
   if (parts.length === 1) return { nombre: parts[0], apellido: "" };
@@ -76,7 +73,7 @@ function splitFullName(full: string) {
   return { nombre: parts.slice(0, -1).join(" "), apellido: parts.slice(-1).join(" ") };
 }
 
-// 🔒 Solo letras (todas), tildes/ñ y espacios
+// 🔒 Solo letras (todas), tildes/ñ y espacios (no hay “tipo string” de teclado; esto evita dígitos)
 const sanitizeName = (raw: string) =>
   raw
     .normalize('NFC')
@@ -87,6 +84,8 @@ const sanitizeName = (raw: string) =>
 
 export default function DpiScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
+
   const [dpi, setDpi] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
@@ -117,28 +116,18 @@ export default function DpiScreen() {
     }
   }, [locked]);
 
-  // ✅ Back robusto (goBack → parent.navigate('Home') → reset a 'Home'/'Welcome')
+  // Back seguro
   const safeBack = useCallback(() => {
-    if (navigation.canGoBack && navigation.canGoBack()) {
+    if (navigation.canGoBack?.() && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    const parent = navigation.getParent?.();
-    if (parent) {
-      try {
-        parent.navigate('Home' as never);
-        return;
-      } catch (_) {}
-    }
     try {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' as never }],
-      });
+      navigation.replace('Welcome');
     } catch {
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Welcome' as never }],
+        routes: [{ name: 'Welcome' as keyof RootStackParamList } as any],
       });
     }
   }, [navigation]);
@@ -146,8 +135,8 @@ export default function DpiScreen() {
   // Limpia al enfocar y al salir
   useFocusEffect(
     useCallback(() => {
-      clearAll(); // al entrar
-      return () => { clearAll(); }; // al salir
+      clearAll();
+      return () => { clearAll(); };
     }, [clearAll])
   );
 
@@ -181,7 +170,6 @@ export default function DpiScreen() {
           autoFillDpiRef.current = dpi;
           Toast.show({ type: "success", text1: "Cliente encontrado", text2: "Datos autocompletados." });
         } else {
-          // No existe → desbloquea para ingresar manualmente
           setLocked(false);
           autoFillDpiRef.current = null;
         }
@@ -195,7 +183,7 @@ export default function DpiScreen() {
     return () => clearTimeout(t);
   }, [dpi]);
 
-  // Si DPI deja de ser válido (menos de 13 dígitos) o cambia respecto al que autocompletó, limpiar nombres
+  // Si DPI deja de ser válido o cambia respecto al que autocompletó, limpiar nombres
   useEffect(() => {
     if (dpi.length < 13) {
       clearAutoFilled();
@@ -204,6 +192,9 @@ export default function DpiScreen() {
       clearAutoFilled();
     }
   }, [dpi, clearAutoFilled]);
+
+  const nombreRef = useRef<TextInput>(null);
+  const apellidoRef = useRef<TextInput>(null);
 
   const handleNext = () => {
     const result = validateCUI(dpi);
@@ -220,113 +211,132 @@ export default function DpiScreen() {
         dpi: dpi.replace(/\D/g, ""),
         name: `${nombre.trim()} ${apellido.trim()}`,
         sessionId,
-      } as any);
+      });
     }
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Pressable style={{ flex: 1 }} onTouchStart={bump}>
-        <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.container}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => { bump(); clearAll(); safeBack(); }}
-          >
-            <FontAwesome5 name="arrow-left" size={24} color="#fff" />
-          </TouchableOpacity>
+      {/* Contenedor que capta interacción sin bloquear hijos */}
+      <LinearGradient
+        colors={['#104c80','#104c80','#104c80','#0f172a']}
+        style={styles.container}
+        onTouchStart={bump}
+      >
+        {/* Botón de regreso grande y visible */}
+        <TouchableOpacity
+          style={[styles.backButton, { top: insets.top + 8 }]}
+          onPress={() => { clearAll(); safeBack(); }}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Regresar"
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
+          <View style={styles.backPill}>
+            <FontAwesome5 name="arrow-left" size={18} color="#0f172a" />
+            <Text style={styles.backLabel}>Regresar</Text>
+          </View>
+        </TouchableOpacity>
 
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: "timing", duration: 700 }}
-            style={styles.innerContainer}
-          >
-            <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-            <Text style={styles.title}>Registro con DPI</Text>
-            <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 700 }}
+          style={styles.innerContainer}
+        >
+          <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
+          <Text style={styles.title}>Registro con DPI</Text>
+          <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
-            {/* DPI: SOLO NÚMEROS (13) */}
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="DPI: 1234567890123"
-              maxLength={13}
-              value={dpi}
-              onChangeText={(text) => {
-                const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
-                setDpi(numericText);
-                bump();
-                // limpieza inmediata si rompe la validez
-                if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
-                  clearAutoFilled();
-                  lastQueried.current = "";
-                }
+          {/* DPI: SOLO NÚMEROS (13) */}
+          <TextInput
+            ref={nombreRef}
+            style={styles.input}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            placeholder="DPI: 1234567890123"
+            maxLength={13}
+            value={dpi}
+            onChangeText={(text) => {
+              const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
+              setDpi(numericText);
+              if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
+                clearAutoFilled();
+                lastQueried.current = "";
+              }
+            }}
+            placeholderTextColor="#9CA3AF"
+            contextMenuHidden
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => apellidoRef.current?.focus()}
+          />
+
+          {/* NOMBRE: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
+          <TextInput
+            style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+            placeholder="Nombre"
+            value={nombre}
+            onChangeText={text => setNombre(sanitizeName(text))}
+            placeholderTextColor="#9CA3AF"
+            keyboardType="default"
+            inputMode="text"            // sugiere teclado de texto
+            autoCapitalize="words"
+            autoCorrect={false}
+            importantForAutofill="no"
+            textContentType="name"
+            autoComplete="name"
+            editable={!locked}
+            contextMenuHidden
+            maxLength={60}
+            returnKeyType="next"
+            onSubmitEditing={() => apellidoRef.current?.focus()}
+          />
+
+          {/* APELLIDO: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
+          <TextInput
+            ref={apellidoRef}
+            style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+            placeholder="Apellido"
+            value={apellido}
+            onChangeText={text => setApellido(sanitizeName(text))}
+            placeholderTextColor="#9CA3AF"
+            keyboardType="default"
+            inputMode="text"
+            autoCapitalize="words"
+            autoCorrect={false}
+            importantForAutofill="no"
+            textContentType="familyName"
+            autoComplete="name-family"
+            editable={!locked}
+            contextMenuHidden
+            maxLength={60}
+            returnKeyType="done"
+            onSubmitEditing={handleNext}
+          />
+
+          {locked && (
+            <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
+              <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.buttonWrapper}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPressIn={() => { scale.value = withSpring(0.95); }}
+              onPressOut={() => {
+                scale.value = withSpring(1);
+                handleNext();
               }}
-              placeholderTextColor="#9CA3AF"
-              contextMenuHidden={true} // bloquea pegar/copiar (opcional)
-            />
-
-            {/* NOMBRE: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
-            <TextInput
-              style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-              placeholder="Nombre"
-              value={nombre}
-              onChangeText={text => {
-                setNombre(sanitizeName(text));
-                bump();
-              }}
-              placeholderTextColor="#9CA3AF"
-              keyboardType="default"
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="name"
-              editable={!locked}
-              contextMenuHidden={true} // opcional
-            />
-
-            {/* APELLIDO: SOLO LETRAS + ESPACIOS (con tildes/ñ) */}
-            <TextInput
-              style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-              placeholder="Apellido"
-              value={apellido}
-              onChangeText={text => {
-                setApellido(sanitizeName(text));
-                bump();
-              }}
-              placeholderTextColor="#9CA3AF"
-              keyboardType="default"
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="familyName"
-              editable={!locked}
-              contextMenuHidden={true} // opcional
-            />
-
-            {locked && (
-              <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
-                <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.buttonWrapper}>
-              <Pressable
-                onPressIn={() => { scale.value = withSpring(0.95); }}
-                onPressOut={() => {
-                  scale.value = withSpring(1);
-                  bump();
-                  handleNext();
-                }}
-              >
-                <Animated.View style={[styles.animatedButton, animatedStyle]}>
-                  <Text style={styles.buttonText}>Continuar</Text>
-                </Animated.View>
-              </Pressable>
-            </View>
-          </MotiView>
-        </LinearGradient>
-      </Pressable>
+            >
+              <Animated.View style={[styles.animatedButton, animatedStyle]}>
+                <Text style={styles.buttonText}>Continuar</Text>
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        </MotiView>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -334,10 +344,37 @@ export default function DpiScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
   innerContainer: { justifyContent: "center", alignItems: "center" },
-  backButton: { position: "absolute", top: 40, left: 20, zIndex: 10, padding: 10 },
+
+  // Back pill
+  backButton: {
+    position: "absolute",
+    left: 16,
+    zIndex: 50,
+  },
+  backPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  backLabel: {
+    color: "#0f172a",
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+
   icon: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
   subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 20, textAlign: "center", paddingHorizontal: 12 },
+
   input: {
     width: "90%",
     backgroundColor: "#ffffff",
@@ -355,6 +392,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+
   buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden", marginTop: 10 },
   animatedButton: {
     backgroundColor: "#1e40af",
