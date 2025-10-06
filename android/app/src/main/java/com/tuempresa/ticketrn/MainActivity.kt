@@ -11,10 +11,9 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
-  override fun getMainComponentName(): String = "main" // si tu AppRegistry usa "main"
+  override fun getMainComponentName(): String = "main" // cambia si tu AppRegistry usa otro nombre
 
   override fun createReactActivityDelegate(): ReactActivityDelegate {
-    // Evita el import de fabricEnabled: usa el flag del BuildConfig
     return DefaultReactActivityDelegate(
       this,
       mainComponentName,
@@ -27,7 +26,6 @@ class MainActivity : ReactActivity() {
     enableStickyImmersive()
   }
 
-  // FIRMA CORRECTA EN KOTLIN (nada de 'public' ni 'boolean')
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
     if (hasFocus) enableStickyImmersive()
