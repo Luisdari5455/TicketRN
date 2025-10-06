@@ -2,9 +2,9 @@ package com.tuempresa.ticketrn
 
 import android.app.Application
 import android.content.res.Configuration
+import com.tuempresa.kiosk.KioskPackage
 
 import com.facebook.react.PackageList
-import com.tuempresa.kiosk.KioskPackage;
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
@@ -22,10 +22,13 @@ class MainApplication : Application(), ReactApplication {
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,
         object : DefaultReactNativeHost(this) {
-       override fun getPackages(): List<ReactPackage> {
-  val packages = PackageList(this).packages
-  packages.add(KioskPackage())  
-}
+          override fun getPackages(): List<ReactPackage> {
+            val packages = PackageList(this).packages
+        packages.add(KioskPackage())
+            // Packages that cannot be autolinked yet can be added manually here, for example:
+            // packages.add(MyReactNativePackage())
+            return packages
+          }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
 
