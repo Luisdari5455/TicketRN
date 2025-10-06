@@ -1,8 +1,9 @@
-const { withDangerousMod, withMainApplication } = require('@expo/config-plugins');
+// plugins/with-kiosk-native.js
+const { withDangerousMod, withMainApplication, withAndroidManifest } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const KIOSK_PACKAGE_PATH = ['app','src','main','java','com','tuempresa','kiosk'];
+const KIOSK_PACKAGE = ['app','src','main','java','com','tuempresa','kiosk'];
 
 const kioskModuleKt = `package com.tuempresa.kiosk
 
@@ -18,32 +19,44 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
   override fun getName(): String = "KioskMode"
 
   @ReactMethod
-  fun stopLockTask(promise: Promise) {
+  fun startLockTask(promise: Promise) {
     try {
       val activity: Activity? = currentActivity
-      if (activity != null) {
-        activity.stopLockTask()
-        promise.resolve(true)
-      } else {
+      if (activity == null) {
         promise.reject("NO_ACTIVITY", "No current activity")
+        return
+      }
+      activity.runOnUiThread {
+        try {
+          activity.startLockTask()
+          promise.resolve(true)
+        } catch (e: Exception) {
+          promise.reject("START_LOCK_TASK_FAIL", e)
+        }
       }
     } catch (e: Exception) {
-      promise.reject("STOP_LOCK_TASK_FAIL", e)
+      promise.reject("START_LOCK_TASK_FAIL", e)
     }
   }
 
   @ReactMethod
-  fun startLockTask(promise: Promise) {
+  fun stopLockTask(promise: Promise) {
     try {
       val activity: Activity? = currentActivity
-      if (activity != null) {
-        activity.startLockTask()
-        promise.resolve(true)
-      } else {
+      if (activity == null) {
         promise.reject("NO_ACTIVITY", "No current activity")
+        return
+      }
+      activity.runOnUiThread {
+        try {
+          activity.stopLockTask()
+          promise.resolve(true)
+        } catch (e: Exception) {
+          promise.reject("STOP_LOCK_TASK_FAIL", e)
+        }
       }
     } catch (e: Exception) {
-      promise.reject("START_LOCK_TASK_FAIL", e)
+      promise.reject("STOP_LOCK_TASK_FAIL", e)
     }
   }
 }
@@ -67,41 +80,73 @@ class KioskPackage : ReactPackage {
 `;
 
 function ensureFile(file, contents) {
-  const dir = path.dirname(file);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, contents, { encoding: 'utf8' });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== contents) {
+    fs.writeFileSync(file, contents, 'utf8');
+  }
 }
 
 module.exports = function withKioskNative(config) {
-  // 1) Escribir los .kt tras prebuild
+  // 1) Escribir los .kt
   config = withDangerousMod(config, ['android', async (c) => {
-    const androidDir = c.modRequest.platformProjectRoot; // <project>/android
-    const pkgDir = path.join(androidDir, ...KIOSK_PACKAGE_PATH);
+    const androidDir = c.modRequest.platformProjectRoot;
+    const pkgDir = path.join(androidDir, ...KIOSK_PACKAGE);
     ensureFile(path.join(pkgDir, 'KioskModule.kt'), kioskModuleKt);
     ensureFile(path.join(pkgDir, 'KioskPackage.kt'), kioskPackageKt);
     return c;
   }]);
 
-  // 2) Inyectar import + registro en MainApplication
+  // 2) Registrar KioskPackage en MainApplication (soporta Kotlin y Java)
   config = withMainApplication(config, (c) => {
     let src = c.modResults.contents;
+    const isKotlin = c.modResults.language === 'kt';
 
-    if (!src.includes('import com.tuempresa.kiosk.KioskPackage')) {
-      src = src.replace(
-        /import com.facebook.react.PackageList;?\n/,
-        (m) => m + 'import com.tuempresa.kiosk.KioskPackage;\n'
-      );
-    }
-
-    const marker = 'new PackageList(this).getPackages()';
-    if (src.includes(marker) && !src.includes('new KioskPackage()')) {
-      src = src.replace(
-        /new PackageList\(this\)\.getPackages\(\)/,
-        'new PackageList(this).getPackages()\n        .plus(new KioskPackage())'
-      );
+    if (isKotlin) {
+      if (!src.includes('import com.tuempresa.kiosk.KioskPackage')) {
+        // Inserta después de otros imports
+        src = src.replace(/(import [^\n]+\n)(?!import)/, (m) => m + `import com.tuempresa.kiosk.KioskPackage\n`);
+      }
+      if (!src.includes('packages.add(KioskPackage())')) {
+        src = src.replace(
+          /val packages = PackageList\(this\)\.packages/,
+          `val packages = PackageList(this).packages\n        packages.add(KioskPackage())`
+        );
+      }
+    } else {
+      if (!src.includes('import com.tuempresa.kiosk.KioskPackage;')) {
+        src = src.replace(
+          /import com\.facebook\.react\.PackageList;?\n/,
+          (m) => m + 'import com.tuempresa.kiosk.KioskPackage;\n'
+        );
+      }
+      if (!src.includes('new KioskPackage()')) {
+        src = src.replace(
+          /List<ReactPackage> packages = new PackageList\(this\)\.getPackages\(\);/,
+          `List<ReactPackage> packages = new PackageList(this).getPackages();\n      packages.add(new KioskPackage());`
+        );
+      }
     }
 
     c.modResults.contents = src;
+    return c;
+  });
+
+  // 3) Opcional: lockTaskMode en el Manifest (no rompe si ya existe)
+  config = withAndroidManifest(config, (c) => {
+    const app = c.modResults.manifest.application?.[0];
+    if (app?.activity?.length) {
+      const act = app.activity.find(
+        (a) =>
+          a['$']?.['android:name'] === '.MainActivity' ||
+          (a['$']?.['android:name'] || '').endsWith('MainActivity')
+      );
+      if (act) {
+        if (!act['$']) act['$'] = {};
+        if (!act['$']['android:lockTaskMode']) {
+          act['$']['android:lockTaskMode'] = 'if_whitelisted';
+        }
+      }
+    }
     return c;
   });
 
