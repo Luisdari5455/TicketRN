@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,14 +6,32 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useIdleReset } from '../hooks/useIdleReset';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
 
+  // ⏲️ Si no hay interacción, vuelve a Welcome
+  const { bump } = useIdleReset({
+    timeoutMs: 60000,
+    onTimeout: () => {
+      navigation.replace('Welcome' as any);
+    },
+  });
+
+  // Asegura que el timer arranque aun si el usuario no toca nada
+  useEffect(() => {
+    bump();
+  }, [bump]);
+
   return (
-    <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.container}>
+    <LinearGradient
+      colors={['#104c80', '#104c80', '#104c80', '#0f172a']}
+      style={styles.container}
+      onTouchStart={bump} // cualquier toque reinicia el timer
+    >
       <MotiView
         from={{ opacity: 0, translateY: -30 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -30,7 +48,8 @@ export default function HomeScreen() {
       >
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
-          onPress={() => navigation.navigate('DPI')}
+          onPress={() => navigation.navigate('DPI' as any)}
+          activeOpacity={0.9}
         >
           <FontAwesome5 name="id-card" size={20} color="#fff" style={styles.icon} />
           <Text style={styles.buttonText}>Registrar con DPI</Text>
@@ -44,7 +63,8 @@ export default function HomeScreen() {
       >
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => navigation.navigate('SinDPI')}
+          onPress={() => navigation.navigate('SinDPI' as any)}
+          activeOpacity={0.9}
         >
           <FontAwesome5 name="user" size={20} color="#fff" style={styles.icon} />
           <Text style={styles.buttonText}>Registrar sin DPI</Text>
