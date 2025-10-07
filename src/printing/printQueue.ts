@@ -8,20 +8,14 @@ import {
 } from './escposHelpers';
 
 export type PrintJob = {
-  jobId: string;           // idempotencia
+  jobId: string;
   payload: {
-    header?: string;
-    subHeader?: string;
-    ticketNumber?: string;
-    name?: string;
-    dpi?: string;
-    service?: string;
-    dateTime?: string;
-    footer?: string;
+    header?: string; subHeader?: string; ticketNumber?: string;
+    name?: string; dpi?: string; service?: string; dateTime?: string; footer?: string;
   };
   attempts?: number;
-  maxAttempts?: number;    // default 5
-  nextAt?: number;         // timestamp ms para reintento
+  maxAttempts?: number;
+  nextAt?: number;
   createdAt?: number;
 };
 
@@ -106,7 +100,6 @@ export class PrintQueue {
 
         try {
           await this.print(job);
-          // éxito
           this.doneIds.push(job.jobId);
           this.q.splice(idx, 1);
           await this.persist();
@@ -124,7 +117,7 @@ export class PrintQueue {
           } else {
             const base = 2000 * Math.pow(2, job.attempts - 1);
             const jitter = Math.floor(Math.random() * 1000);
-            job.nextAt = Date.now() + Math.min(60000, base + jitter); // cap 60s
+            job.nextAt = Date.now() + Math.min(60000, base + jitter);
             this.emit('retry_scheduled', { inMs: job.nextAt - Date.now(), error: String(e?.message || e) }, job.jobId);
             await this.persist();
           }

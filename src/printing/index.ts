@@ -6,8 +6,8 @@ import { PrintQueue } from './printQueue';
 export type PrintAgentOptions = {
   printerIp: string;
   printerPort?: number;
-  ackBaseUrl?: string;   // opcional si usas HTTP
-  ackToken?: string;     // opcional
+  ackBaseUrl?: string;
+  ackToken?: string;
   onStatus?: (ev: { type: string; jobId?: string; info?: any }) => void;
 };
 
@@ -22,12 +22,12 @@ export class PrintAgent {
     this.printer = new TcpPrinter({
       host: opts.printerIp,
       port: opts.printerPort ?? 9100,
-      timeoutMs: 8000
+      timeoutMs: 15000,
     });
 
     const defaultSender: AckSender = opts.ackBaseUrl
       ? makeHttpAckSender({ baseUrl: opts.ackBaseUrl, token: opts.ackToken })
-      : async () => {}; // no-op si no configuras HTTP
+      : async () => {};
 
     this.ack = new AckQueue(defaultSender);
     this.q = new PrintQueue(this.printer, this.ack, { onStatus: this.onStatus });
@@ -39,12 +39,11 @@ export class PrintAgent {
     this.q.process();
   }
 
-  /** Permite cambiar el transport del ACK (Socket.IO en la tablet) */
   setAckSender(sender: AckSender) {
     this.ack.setSender(sender);
   }
 
   enqueue(job: { jobId: string; payload: any; maxAttempts?: number }) {
-    this.q.enqueue(job);
+    this.q.enqueue(job as any);
   }
 }

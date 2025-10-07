@@ -37,7 +37,7 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false); // gate global (entrada)
   const [entryPin, setEntryPin] = useState("");
   const [entryVisible, setEntryVisible] = useState(true);
-   const bridgeRef = useRef<BridgeClient | null>(null);
+  const bridgeRef = useRef<BridgeClient | null>(null);
   const tapsRef = useRef(0); // salida admin (5 toques)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unlockVisible, setUnlockVisible] = useState(false);
@@ -51,37 +51,40 @@ export default function App() {
       await NavigationBar.setBackgroundColorAsync("transparent");
     } catch {}
   };
-const handleBridgeStatus = (s: string, info?: any) => {
-  console.log("[BRIDGE]", s, info ?? "");
-  // si quieres ver en UI:
-  // Toast.show({ type: s.includes('error') ? 'error' : 'success', text1: s });
-};
-useEffect(() => {
-  if (!isUnlocked) return;
 
-  // ⚙️ CONFIGURA TUS DATOS AQUÍ
-  const backendUrl = "https://ticketapi-ceqz.onrender.com"; 
-  const sioPath = "/socket.io";
-  const locationId = "sucursal-central-01";
-   const printerIp = "192.168.1.200"
-  const token = "supersecreto123";  
-
-  const bridge = new BridgeClient({
-    backendUrl,
-    sioPath,
-    locationId,
-    printerIp,
-    token,
-    onStatus: handleBridgeStatus,
-  });
-  bridgeRef.current = bridge;
-  bridge.init();
-
-  return () => {
-    // (no hay stop explícito; el socket cierra al desmontar la app)
-    bridgeRef.current = null;
+  const handleBridgeStatus = (s: string, info?: any) => {
+    console.log("[BRIDGE]", s, info ?? "");
+    // Si quieres ver en UI, descomenta:
+    // Toast.show({ type: s.includes('error') ? 'error' : 'success', text1: s });
   };
-}, [isUnlocked]);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    // ⚙️ CONFIGURA TUS DATOS AQUÍ
+    const backendUrl = "https://ticketapi-ceqz.onrender.com";
+    const sioPath = "/socket.io";
+    const locationId = "sucursal-central-01";
+    const printerIp = "192.168.1.200"; // 👈 IP fija de la impresora en tu LAN
+    const token = "supersecreto123";
+
+    const bridge = new BridgeClient({
+      backendUrl,
+      sioPath,
+      locationId,
+      printerIp,
+      token,
+      onStatus: handleBridgeStatus,
+    });
+    bridgeRef.current = bridge;
+    bridge.init();
+
+    return () => {
+      // (no hay stop explícito; el socket cierra al desmontar la app)
+      bridgeRef.current = null;
+    };
+  }, [isUnlocked]);
+
   useEffect(() => {
     const lockOrientation = async () => {
       try {
@@ -96,10 +99,7 @@ useEffect(() => {
     const appSub = AppState.addEventListener("change", (s: AppStateStatus) => {
       if (s === "active") hideNavBar();
     });
-    const backSub = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => true
-    );
+    const backSub = BackHandler.addEventListener("hardwareBackPress", () => true);
     const interval = setInterval(hideNavBar, 3000); // re-ocultar frecuentemente
 
     return () => {
@@ -122,7 +122,7 @@ useEffect(() => {
     }
   };
 
-  // ---- 5 toques rápidos en esquina sup. izq. para pedir PIN de salida
+  // ---- 5 toques rápidos para pedir PIN de salida
   const handleSecretTap = () => {
     tapsRef.current += 1;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -242,6 +242,23 @@ useEffect(() => {
               height: 56,
             }}
           />
+
+          {/* ✅ Botón temporal de PRUEBA DE IMPRESIÓN local */}
+          <View style={{ position: 'absolute', bottom: 20, left: 20 }}>
+            <Pressable
+              onPress={() => bridgeRef.current?.printTest()}
+              style={{
+                backgroundColor: '#0ea5e9',
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>
+                Imprimir prueba
+              </Text>
+            </Pressable>
+          </View>
         </>
       )}
 

@@ -1,5 +1,6 @@
 // src/printing/tcpPrinter.ts
 import TcpSocket from 'react-native-tcp-socket';
+import { Buffer } from 'buffer';
 
 export type PrintTarget = { host: string; port?: number; timeoutMs?: number };
 
@@ -11,18 +12,24 @@ export class TcpPrinter {
   constructor(target: PrintTarget) {
     this.host = target.host;
     this.port = target.port ?? 9100;
-    this.timeoutMs = target.timeoutMs ?? 8000;
+    this.timeoutMs = target.timeoutMs ?? 15000; // 15s
   }
 
   async send(raw: Uint8Array): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const socket = TcpSocket.createConnection(
-        { host: this.host, port: this.port, tls: false }, 
+        { host: this.host, port: this.port, tls: false },
         () => {
           try {
-            socket.setTimeout?.(this.timeoutMs);     
-            socket.write(raw);
-            socket.end();                               
+            socket.setKeepAlive?.(true, 1000);
+            socket.setTimeout?.(this.timeoutMs);
+
+            const buf = Buffer.from(raw);        // 👈 clave: usar Buffer
+            socket.write(buf);
+
+            setTimeout(() => {                   // pequeño delay
+              try { socket.end(); } catch {}
+            }, 200);
           } catch (e) {
             try { socket.destroy(); } catch {}
             reject(this.wrapError(e));
@@ -42,8 +49,6 @@ export class TcpPrinter {
       socket.on('timeout', () =>
         finish(this.error('TIMEOUT', `Printer timeout after ${this.timeoutMs}ms`))
       );
-
-      // En RN no hay 'end'; usa 'close' como señal de cierre
       socket.on('close', () => finish());
     });
   }

@@ -4,12 +4,12 @@ import { PrintAgent } from './index';
 import { makeSocketAckSender } from './ackSocketSender';
 
 type BridgeOpts = {
-  backendUrl: string;         // p.ej. https://ticketapi-ceqz.onrender.com
-  sioPath?: string;           // si cambiaste el path, default '/socket.io'
-  locationId: string;         // ej: 'sucursal-central-01'
-  printerIp: string;          // IP fija de la RPT006W
-  printerPort?: number;       // 9100 por defecto
-  token?: string;             // si quieres auth: se manda en auth
+  backendUrl: string;
+  sioPath?: string;
+  locationId: string;
+  printerIp: string;
+  printerPort?: number;
+  token?: string;
   onStatus?: (s: string, info?: any)=>void;
 };
 
@@ -46,17 +46,13 @@ export class BridgeClient {
 
     await this.agent.init();
 
-    // Reemplaza el sender de ACK del agente por el socket-emitter
-    // (si usas la versión que te pasé antes con HTTP, aquí haríamos un pequeño ajuste:
-    //  expón un método this.agent.setAckSender(senderFn). Si no lo tienes, te dejo la variante rápida:)
-    // --- VARIANTE RÁPIDA: sobreescribir internamente ---
-    // @ts-ignore acceso interno controlado por ti
+    // Reemplaza el sender de ACK del agente por socket
+    // @ts-ignore acceso interno controlado
     this.agent['ack']['sender'] = makeSocketAckSender(this.socket);
 
     // 3) Eventos del socket
     this.socket.on('connect', () => {
       this.opts.onStatus?.('socket:connect', { id: this.socket.id });
-      // Registrar bridge en su room
       this.socket.emit('register-bridge', { locationId: this.opts.locationId });
     });
 
@@ -68,10 +64,9 @@ export class BridgeClient {
       this.opts.onStatus?.('socket:connect_error', { message: err?.message || String(err) });
     });
 
-    // Mantén un ping opcional (tu backend ya tiene pingInterval/pingTimeout)
     setInterval(() => { try { this.socket.emit('ping-check'); } catch {} }, 30000);
 
-    // 4) Recibir trabajos de impresión
+    // 4) Recibir trabajos de impresión remotos
     this.socket.on('print-ticket', (msg: any) => {
       try {
         const jobId = String(msg?.jobId || '');
@@ -80,12 +75,10 @@ export class BridgeClient {
 
         if (!jobId) return;
         if (type !== 'escpos') {
-          // si algún día soportas tipos nuevos, encolar distinto
           this.socket.emit('print-ack', { jobId, ok: false, error: `Tipo no soportado: ${type}` });
           return;
         }
 
-        // Encola en el agente (dedupe interno por jobId)
         this.agent.enqueue({
           jobId,
           payload: {
@@ -101,10 +94,33 @@ export class BridgeClient {
           maxAttempts: 5,
         });
 
-        this.opts.onStatus?.('enqueue', { jobId, payload });
+        this.opts.onStatus?.('enqueue_remote', { jobId, payload });
       } catch (e) {
         this.opts.onStatus?.('enqueue_error', { error: String(e) });
       }
     });
+  }
+
+  /** 👇 Impresión local de prueba (sin backend) */
+  printTest() {
+    const jobId = `local-${Date.now()}`;
+    this.opts.onStatus?.('agent:start', { jobId });
+
+    this.agent.enqueue({
+      jobId,
+      payload: {
+        header: 'PRUEBA DE IMPRESIÓN',
+        subHeader: '3nStar / ESC/POS',
+        ticketNumber: 'TEST-01',
+        name: 'Prueba',
+        dpi: '0000000000000',
+        service: 'Self Test',
+        dateTime: new Date().toISOString(),
+        footer: 'Si lees esto, el canal 9100 está OK',
+      },
+      maxAttempts: 3,
+    });
+
+    this.opts.onStatus?.('enqueue_local', { jobId });
   }
 }
