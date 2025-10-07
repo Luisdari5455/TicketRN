@@ -21,27 +21,42 @@ import { BridgeClient } from "./src/printing/bridgeClient";
 import AppNavigator from "./src/navigation/AppNavigator";
 import Toast from "react-native-toast-message";
 import { CustomToast } from "./src/components/CustomToast";
+import { loadConfig, saveConfig, defaultConfig, RuntimeConfig } from "./src/config/runtimeConfig";
 
 const toastConfig = {
   success: (props: any) => <CustomToast {...props} />,
   error: (props: any) => <CustomToast {...props} />,
 };
 
-const ENTRY_PIN = "2580"; // <-- PIN para ENTRAR a la app (cámbialo)
-const ADMIN_PIN = "4321"; // <-- PIN para SALIR de la app (cámbialo)
+const ENTRY_PIN = "2580";
+const ADMIN_PIN = "4321";
 
 export default function App() {
   useKeepAwake();
 
-  // --- Estado kiosco/locks:
-  const [isUnlocked, setIsUnlocked] = useState(false); // gate global (entrada)
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [entryPin, setEntryPin] = useState("");
   const [entryVisible, setEntryVisible] = useState(true);
+
+  const [cfg, setCfg] = useState<RuntimeConfig>(defaultConfig);
+  const [cfgVisible, setCfgVisible] = useState(false);
+  const [cfgPinAsk, setCfgPinAsk] = useState(false);
+  const [cfgPin, setCfgPin] = useState("");
+
   const bridgeRef = useRef<BridgeClient | null>(null);
-  const tapsRef = useRef(0); // salida admin (5 toques)
+
+  const tapsRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unlockVisible, setUnlockVisible] = useState(false);
   const [exitPin, setExitPin] = useState("");
+
+  useEffect(() => {
+    // cargar config persistida al inicio
+    (async () => {
+      const c = await loadConfig();
+      setCfg(c);
+    })();
+  }, []);
 
   const hideNavBar = async () => {
     if (Platform.OS !== "android") return;
@@ -54,36 +69,43 @@ export default function App() {
 
   const handleBridgeStatus = (s: string, info?: any) => {
     console.log("[BRIDGE]", s, info ?? "");
-    // Si quieres ver en UI, descomenta:
     // Toast.show({ type: s.includes('error') ? 'error' : 'success', text1: s });
   };
 
+  // Inicializa / reconfigura el bridge cuando hay PIN y cfg cargada
   useEffect(() => {
     if (!isUnlocked) return;
+    (async () => {
+      if (!cfg?.backendUrl || !cfg?.locationId || !cfg?.printerIp) return;
 
-    // ⚙️ CONFIGURA TUS DATOS AQUÍ
-    const backendUrl = "https://ticketapi-ceqz.onrender.com";
-    const sioPath = "/socket.io";
-    const locationId = "sucursal-central-01";
-    const printerIp = "192.168.1.200"; // 👈 IP fija de la impresora en tu LAN
-    const token = "supersecreto123";
-
-    const bridge = new BridgeClient({
-      backendUrl,
-      sioPath,
-      locationId,
-      printerIp,
-      token,
-      onStatus: handleBridgeStatus,
-    });
-    bridgeRef.current = bridge;
-    bridge.init();
+      if (!bridgeRef.current) {
+        const bridge = new BridgeClient({
+          backendUrl: cfg.backendUrl,
+          sioPath: cfg.sioPath,
+          locationId: cfg.locationId,
+          printerIp: cfg.printerIp,
+          printerPort: cfg.printerPort,
+          token: cfg.token,
+          onStatus: handleBridgeStatus,
+        });
+        bridgeRef.current = bridge;
+        await bridge.init();
+      } else {
+        await bridgeRef.current.reconfigure({
+          backendUrl: cfg.backendUrl,
+          sioPath: cfg.sioPath,
+          locationId: cfg.locationId,
+          printerIp: cfg.printerIp,
+          printerPort: cfg.printerPort,
+          token: cfg.token,
+        });
+      }
+    })();
 
     return () => {
-      // (no hay stop explícito; el socket cierra al desmontar la app)
-      bridgeRef.current = null;
+      // no paramos aquí para no cortar si navega de vuelta; el cierre se hace onExit
     };
-  }, [isUnlocked]);
+  }, [isUnlocked, cfg]);
 
   useEffect(() => {
     const lockOrientation = async () => {
@@ -100,7 +122,7 @@ export default function App() {
       if (s === "active") hideNavBar();
     });
     const backSub = BackHandler.addEventListener("hardwareBackPress", () => true);
-    const interval = setInterval(hideNavBar, 3000); // re-ocultar frecuentemente
+    const interval = setInterval(hideNavBar, 3000);
 
     return () => {
       appSub.remove();
@@ -109,7 +131,6 @@ export default function App() {
     };
   }, []);
 
-  // ---- Entrada con PIN
   const tryEntryUnlock = () => {
     if (entryPin === ENTRY_PIN) {
       setIsUnlocked(true);
@@ -122,7 +143,7 @@ export default function App() {
     }
   };
 
-  // ---- 5 toques rápidos para pedir PIN de salida
+  // 5 toques → PIN de salida
   const handleSecretTap = () => {
     tapsRef.current += 1;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -136,17 +157,44 @@ export default function App() {
 
   const tryExitUnlock = async () => {
     if (exitPin === ADMIN_PIN) {
-      const brokeLock = await stopKioskIfPossible(); // rompe Lock Task real si está activo
+      try { bridgeRef.current?.stop(); } catch {}
+      const brokeLock = await stopKioskIfPossible();
       await NavigationBar.setVisibilityAsync("visible").catch(() => {});
       Toast.show({
         type: "success",
         text1: brokeLock ? "Lock Task detenido" : "Saliendo",
       });
-      BackHandler.exitApp(); // opcional
+      BackHandler.exitApp();
     } else {
       Toast.show({ type: "error", text1: "PIN incorrecto" });
       setExitPin("");
     }
+  };
+
+  // Mantén pulsado 2s en ESQUINA INFERIOR IZQUIERDA → pedir PIN admin para abrir Config
+  const handleLongPressConfig = () => {
+    setCfgPin("");
+    setCfgPinAsk(true);
+  };
+
+  const tryConfigPin = () => {
+    if (cfgPin === ADMIN_PIN) {
+      setCfgPinAsk(false);
+      setCfgVisible(true);
+    } else {
+      Toast.show({ type: "error", text1: "PIN incorrecto" });
+      setCfgPin("");
+    }
+  };
+
+  const [form, setForm] = useState<RuntimeConfig>(defaultConfig);
+  useEffect(() => setForm(cfg), [cfg]);
+
+  const saveAndApplyConfig = async () => {
+    const next = await saveConfig(form);
+    setCfg(next);             // dispara reconfigure del bridge
+    setCfgVisible(false);
+    Toast.show({ type: "success", text1: "Configuración aplicada" });
   };
 
   return (
@@ -208,7 +256,6 @@ export default function App() {
               Desbloquear
             </Text>
           </Pressable>
-          {/* área invisible para re-ocultar barra */}
           <Pressable
             onPress={hideNavBar}
             style={{
@@ -222,7 +269,6 @@ export default function App() {
         </View>
       ) : (
         <>
-          {/* Aquí agregué onLayout={hideNavBar} */}
           <View
             style={{ flex: 1, backgroundColor: "#fff" }}
             onLayout={hideNavBar}
@@ -231,38 +277,33 @@ export default function App() {
             <Toast config={toastConfig} />
           </View>
 
-          {/* área invisible para pedir PIN de salida (5 toques) */}
-          <Pressable
-            onPress={handleSecretTap}
-            style={{
-              position: "absolute",
-              top: 6,
-              right: 6,
-              width: 56,
-              height: 56,
-            }}
-          />
-
-          {/* ✅ Botón temporal de PRUEBA DE IMPRESIÓN local */}
-          <View style={{ position: 'absolute', bottom: 20, left: 20 }}>
+            {/* Toque secreto (5 taps) → PIN de salida */}
             <Pressable
-              onPress={() => bridgeRef.current?.printTest()}
+              onPress={handleSecretTap}
               style={{
-                backgroundColor: '#0ea5e9',
-                paddingVertical: 10,
-                paddingHorizontal: 16,
-                borderRadius: 8,
+                position: "absolute",
+                top: 6,
+                right: 6,
+                width: 56,
+                height: 56,
               }}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>
-                Imprimir prueba
-              </Text>
-            </Pressable>
-          </View>
+            />
+            {/* Mantener 2s en esquina inferior izquierda → Config (PIN admin) */}
+            <Pressable
+              onLongPress={handleLongPressConfig}
+              delayLongPress={2000}
+              style={{
+                position: "absolute",
+                bottom: 8,
+                left: 8,
+                width: 60,
+                height: 60,
+              }}
+            />
         </>
       )}
 
-      {/* Modal de PIN de salida */}
+      {/* PIN de salida */}
       <Modal
         transparent
         visible={unlockVisible}
@@ -289,21 +330,12 @@ export default function App() {
               padding: 20,
             }}
           >
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 18,
-                fontWeight: "700",
-                marginBottom: 12,
-              }}
-            >
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 12 }}>
               Salir (PIN requerido)
             </Text>
             <TextInput
               value={exitPin}
-              onChangeText={(t) =>
-                setExitPin(t.replace(/[^0-9]/g, "").slice(0, 6))
-              }
+              onChangeText={(t) => setExitPin(t.replace(/[^0-9]/g, "").slice(0, 6))}
               placeholder="PIN"
               placeholderTextColor="#94a3b8"
               keyboardType="number-pad"
@@ -321,33 +353,117 @@ export default function App() {
               returnKeyType="done"
               onSubmitEditing={tryExitUnlock}
             />
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                gap: 12,
-              }}
-            >
-              <Pressable
-                onPress={() => setUnlockVisible(false)}
-                style={{ paddingVertical: 10, paddingHorizontal: 16 }}
-              >
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
+              <Pressable onPress={() => setUnlockVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16 }}>
                 <Text style={{ color: "#cbd5e1", fontSize: 16 }}>Cancelar</Text>
               </Pressable>
               <Pressable
                 onPress={tryExitUnlock}
-                style={{
-                  backgroundColor: "#1e40af",
-                  paddingVertical: 10,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                }}
+                style={{ backgroundColor: "#1e40af", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}
               >
-                <Text
-                  style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
-                >
-                  Desbloquear
-                </Text>
+                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Desbloquear</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* PIN para abrir Config */}
+      <Modal
+        transparent
+        visible={cfgPinAsk}
+        animationType="fade"
+        onRequestClose={() => setCfgPinAsk(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onPress={() => setCfgPinAsk(false)}
+        >
+          <Pressable onPress={() => {}} style={{ width: 360, maxWidth: "95%", backgroundColor: "#0f172a", borderRadius: 16, padding: 20 }}>
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 12 }}>
+              Configuración (PIN admin)
+            </Text>
+            <TextInput
+              value={cfgPin}
+              onChangeText={(t) => setCfgPin(t.replace(/[^0-9]/g, "").slice(0, 6))}
+              placeholder="PIN"
+              placeholderTextColor="#94a3b8"
+              keyboardType="number-pad"
+              secureTextEntry
+              autoFocus
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                fontSize: 18,
+                marginBottom: 16,
+                textAlign: "center",
+              }}
+              returnKeyType="done"
+              onSubmitEditing={tryConfigPin}
+            />
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
+              <Pressable onPress={() => setCfgPinAsk(false)} style={{ paddingVertical: 10, paddingHorizontal: 16 }}>
+                <Text style={{ color: "#cbd5e1", fontSize: 16 }}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={tryConfigPin}
+                style={{ backgroundColor: "#1e40af", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}
+              >
+                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Continuar</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal de Config */}
+      <Modal
+        transparent
+        visible={cfgVisible}
+        animationType="fade"
+        onRequestClose={() => setCfgVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onPress={() => setCfgVisible(false)}
+        >
+          <Pressable onPress={() => {}} style={{ width: 420, maxWidth: "95%", backgroundColor: "#0f172a", borderRadius: 16, padding: 20 }}>
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 12 }}>
+              Configuración del Bridge
+            </Text>
+
+            {[
+              { key: 'backendUrl', label: 'Backend URL', kb: 'url' },
+              { key: 'sioPath', label: 'Socket Path', kb: 'default' },
+              { key: 'locationId', label: 'Location ID', kb: 'default' },
+              { key: 'printerIp', label: 'Printer IP', kb: 'numeric' },
+              { key: 'printerPort', label: 'Printer Port', kb: 'numeric' },
+              { key: 'token', label: 'Token (opcional)', kb: 'default' },
+            ].map((f) => (
+              <View key={f.key} style={{ marginBottom: 10 }}>
+                <Text style={{ color: "#cbd5e1", marginBottom: 6 }}>{f.label}</Text>
+                <TextInput
+                  value={String((form as any)[f.key] ?? '')}
+                  onChangeText={(t) => setForm((prev) => ({ ...prev, [f.key]: f.key === 'printerPort' ? Number(t.replace(/[^0-9]/g,'')) || 9100 : t }))}
+                  placeholder={f.label}
+                  placeholderTextColor="#94a3b8"
+                  keyboardType={f.kb === 'numeric' ? 'number-pad' : 'default'}
+                  style={{ backgroundColor: "#fff", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, fontSize: 16 }}
+                />
+              </View>
+            ))}
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 8 }}>
+              <Pressable onPress={() => setCfgVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 16 }}>
+                <Text style={{ color: "#cbd5e1", fontSize: 16 }}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveAndApplyConfig}
+                style={{ backgroundColor: "#22c55e", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}
+              >
+                <Text style={{ color: "#0f172a", fontSize: 16, fontWeight: "800" }}>Guardar y aplicar</Text>
               </Pressable>
             </View>
           </Pressable>

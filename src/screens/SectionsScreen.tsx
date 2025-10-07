@@ -26,6 +26,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { useIdleReset } from "../hooks/useIdleReset";
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Sections">;
 type SectionsRouteProp = RouteProp<RootStackParamList, "Sections">;
@@ -82,7 +83,8 @@ export default function SectionsScreen() {
 
   useEffect(() => {
     if (!sessionId) {
-      Alert.alert("Sesión inválida", "Vuelve a iniciar el registro.");
+
+      Toast.show({ type: "info", text1: "Sesión inválida Vuelve a iniciar el registro." });
       navigation.replace("Welcome" as any);
     }
   }, [sessionId, navigation]);
@@ -91,7 +93,7 @@ export default function SectionsScreen() {
     timeoutMs: 60000,
     onTimeout: () => {
       setDetailsVisible(false);
-      Alert.alert("Sesión reiniciada", "Sin actividad, se reinició el flujo.");
+      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
       navigation.replace("Welcome" as any);
     },
   });
@@ -103,7 +105,7 @@ export default function SectionsScreen() {
         setSections(data.items);
       } catch (err) {
         console.error("Error al obtener servicios", err);
-        Alert.alert("Error", "No se pudieron cargar las secciones");
+        Toast.show({ type: "error", text1: "Error", text2: "No se pudieron cargar las secciones" });
       } finally {
         setLoading(false);
       }

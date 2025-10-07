@@ -6,9 +6,10 @@ import {
   concatBytes, init, selectCP858, setAlign, setBold, setSize,
   drawLine, textLine, feed, cutFull
 } from './escposHelpers';
+import { LOGO_BYTES } from './logo';
 
 export type PrintJob = {
-  jobId: string;
+  jobId: string; // <-- lo normalizaremos siempre a string al encolar
   payload: {
     header?: string; subHeader?: string; ticketNumber?: string;
     name?: string; dpi?: string; service?: string; dateTime?: string; footer?: string;
@@ -26,6 +27,23 @@ type Events = {
 const STORAGE_QUEUE = '@printQueue/v1';
 const STORAGE_DONE  = '@printDone/v1';
 
+// ===== Zona horaria Guatemala (forzada) =====
+function fmtGTYYYYMMDDHHmm(d = new Date()): string {
+  const parts = new Intl.DateTimeFormat('es-GT', {
+    timeZone: 'America/Guatemala',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  const yyyy = get('year');
+  const mm   = get('month');
+  const dd   = get('day');
+  const hh   = get('hour');
+  const mi   = get('minute');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
 export class PrintQueue {
   private q: PrintJob[] = [];
   private doneIds: string[] = [];
@@ -35,6 +53,9 @@ export class PrintQueue {
   private ev?: Events;
   private maxDone = 2000;
 
+  // TTL para evitar reimpresión tras recuperación (ajusta a tu operación)
+  private MAX_AGE_MS = 5 * 60 * 1000; // 5 minutos
+
   constructor(printer: TcpPrinter, ack: AckQueue, ev?: Events) {
     this.printer = printer;
     this.ack = ack;
@@ -42,20 +63,32 @@ export class PrintQueue {
   }
 
   async load() {
-    const [rawQ, rawD] = await Promise.all([
-      AsyncStorage.getItem(STORAGE_QUEUE),
-      AsyncStorage.getItem(STORAGE_DONE),
-    ]);
-    this.q = rawQ ? JSON.parse(rawQ) : [];
-    this.doneIds = rawD ? JSON.parse(rawD) : [];
+    try {
+      const [rawQ, rawD] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_QUEUE),
+        AsyncStorage.getItem(STORAGE_DONE),
+      ]);
+      this.q = rawQ ? JSON.parse(rawQ) : [];
+      this.doneIds = rawD ? JSON.parse(rawD) : [];
+      // Sanitiza tipos por si quedaron números
+      this.q = this.q.map((j: any) => ({ ...j, jobId: String(j.jobId || '') }));
+      this.doneIds = this.doneIds.map((x: any) => String(x));
+    } catch {
+      // Si algo vino corrupto, re-inicializa sin tumbar la app
+      this.q = [];
+      this.doneIds = [];
+      await AsyncStorage.multiRemove([STORAGE_QUEUE, STORAGE_DONE]);
+    }
   }
 
   private async persist() {
-    await AsyncStorage.setItem(STORAGE_QUEUE, JSON.stringify(this.q));
     if (this.doneIds.length > this.maxDone) {
       this.doneIds = this.doneIds.slice(-this.maxDone);
     }
-    await AsyncStorage.setItem(STORAGE_DONE, JSON.stringify(this.doneIds));
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_QUEUE, JSON.stringify(this.q)),
+      AsyncStorage.setItem(STORAGE_DONE, JSON.stringify(this.doneIds)),
+    ]);
   }
 
   private emit(type: string, info?: any, jobId?: string) {
@@ -65,25 +98,40 @@ export class PrintQueue {
   enqueue(job: Omit<PrintJob, 'attempts'|'createdAt'>) {
     if (!job.jobId) throw new Error('jobId requerido');
 
-    if (this.doneIds.includes(job.jobId)) {
-      this.emit('dedupe_done', { reason: 'already printed' }, job.jobId);
-      this.ack.push({ jobId: job.jobId, ok: true, duplicate: true, ts: Date.now() });
+    // 🔐 normaliza SIEMPRE a string
+    const normalizedId = String(job.jobId);
+
+    // evita duplicados (hechos y en cola)
+    if (this.doneIds.includes(normalizedId)) {
+      this.emit('dedupe_done', { reason: 'already printed' }, normalizedId);
+      this.ack.push({ jobId: normalizedId, ok: true, duplicate: true, ts: Date.now() });
       return;
     }
-    if (this.q.some(j => j.jobId === job.jobId)) {
-      this.emit('dedupe_queue', { reason: 'already enqueued' }, job.jobId);
+    if (this.q.some(j => j.jobId === normalizedId)) {
+      this.emit('dedupe_queue', { reason: 'already enqueued' }, normalizedId);
       return;
     }
 
     const j: PrintJob = {
       ...job,
+      jobId: normalizedId,
       attempts: 0,
       maxAttempts: job.maxAttempts ?? 5,
       createdAt: Date.now(),
     };
+
+    // (Opcional) límite de cola en memoria para evitar crecimiento infinito
+    const MAX_QUEUE = 500;
+    if (this.q.length >= MAX_QUEUE) {
+      // Estrategia: descartar el más viejo (o descarta el nuevo y ACK error)
+      const dropped = this.q.shift();
+      this.emit('queue_drop_oldest', { droppedId: dropped?.jobId }, normalizedId);
+    }
+
     this.q.push(j);
-    this.persist();
-    this.process();
+    // guardamos ya con el id normalizado
+    void this.persist();
+    void this.process();
   }
 
   async process() {
@@ -96,6 +144,16 @@ export class PrintQueue {
         if (idx === -1) break;
 
         const job = this.q[idx];
+
+        // ===== TTL: descarta trabajos viejos antes de imprimir =====
+        if (job.createdAt && (Date.now() - job.createdAt) > this.MAX_AGE_MS) {
+          this.emit('expired', { ageMs: Date.now() - job.createdAt }, job.jobId);
+          this.ack.push({ jobId: job.jobId, ok: false, error: 'EXPIRED', ts: Date.now() });
+          this.q.splice(idx, 1);
+          await this.persist();
+          continue;
+        }
+
         this.emit('start', { attempts: job.attempts }, job.jobId);
 
         try {
@@ -135,25 +193,45 @@ export class PrintQueue {
     const name      = (p.name ?? '-').trim();
     const dpi       = (p.dpi ?? '-').trim();
     const service   = (p.service ?? '-').trim();
-    const dateTime  = (p.dateTime ?? new Date().toISOString()).trim();
+
+    // ⏰ Preferimos lo que manda backend; si viene vacío o null → hora Guatemala local
+    const dateTime  = (p.dateTime && p.dateTime.trim().length > 0)
+      ? p.dateTime.trim()
+      : fmtGTYYYYMMDDHHmm(new Date());
+
     const footer    = (p.footer ?? '').trim();
 
     return concatBytes(
       init(),
+      // ⚠️ Mantén el codepage consistente con tu impresora/bridge Node.
+      // Si en el bridge Node usas CP858 (recomendado para acentos/ñ), esto ya está OK.
+      // Si cambias a CP437, sustituye aquí por selectCP437() y ajusta tu encoder.
       selectCP858(),
-      setAlign('ct'), setBold(true), setSize(1,1), textLine(header),
-      setBold(false), setSize(0,0), textLine(subHeader || ' '),
+
+      // Logo centrado (ya reducido en LOGO_BYTES)
+      setAlign('ct'),
+      ...(LOGO_BYTES && LOGO_BYTES.length ? [LOGO_BYTES, feed(1)] : []),
+
+      // Encabezados
+      setBold(true), setSize(1,1), textLine(header),
+      setBold(false), setSize(0,0),
+      textLine(subHeader || ' '),
       drawLine(32),
 
+      // Cuerpo (a la izquierda)
+      setAlign('lt'),
       setSize(2,2), textLine(ticket),
-      setSize(0,0), setAlign('lt'),
+      setSize(0,0),
       textLine(`Nombre: ${name}`),
       textLine(`DPI: ${dpi}`),
       textLine(`Servicio: ${service}`),
       textLine(`Fecha/Hora: ${dateTime}`),
       drawLine(32),
 
+      // Pie
+      setAlign('ct'),
       ...(footer ? [textLine(footer)] : []),
+
       feed(2),
       cutFull(),
     );
