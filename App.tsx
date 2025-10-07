@@ -17,7 +17,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { stopKioskIfPossible } from "./src/native/KioskMode";
-
+import { BridgeClient } from "./src/printing/bridgeClient";
 import AppNavigator from "./src/navigation/AppNavigator";
 import Toast from "react-native-toast-message";
 import { CustomToast } from "./src/components/CustomToast";
@@ -37,9 +37,9 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false); // gate global (entrada)
   const [entryPin, setEntryPin] = useState("");
   const [entryVisible, setEntryVisible] = useState(true);
-
+   const bridgeRef = useRef<BridgeClient | null>(null);
   const tapsRef = useRef(0); // salida admin (5 toques)
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unlockVisible, setUnlockVisible] = useState(false);
   const [exitPin, setExitPin] = useState("");
 
@@ -51,7 +51,37 @@ export default function App() {
       await NavigationBar.setBackgroundColorAsync("transparent");
     } catch {}
   };
+const handleBridgeStatus = (s: string, info?: any) => {
+  console.log("[BRIDGE]", s, info ?? "");
+  // si quieres ver en UI:
+  // Toast.show({ type: s.includes('error') ? 'error' : 'success', text1: s });
+};
+useEffect(() => {
+  if (!isUnlocked) return;
 
+  // ⚙️ CONFIGURA TUS DATOS AQUÍ
+  const backendUrl = "https://ticketapi-ceqz.onrender.com"; 
+  const sioPath = "/socket.io";
+  const locationId = "sucursal-central-01";
+   const printerIp = "192.168.1.200"
+  const token = "supersecreto123";  
+
+  const bridge = new BridgeClient({
+    backendUrl,
+    sioPath,
+    locationId,
+    printerIp,
+    token,
+    onStatus: handleBridgeStatus,
+  });
+  bridgeRef.current = bridge;
+  bridge.init();
+
+  return () => {
+    // (no hay stop explícito; el socket cierra al desmontar la app)
+    bridgeRef.current = null;
+  };
+}, [isUnlocked]);
   useEffect(() => {
     const lockOrientation = async () => {
       try {

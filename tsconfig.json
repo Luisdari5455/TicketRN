@@ -1,6 +1,12 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
-  }
+    "strict": true,
+    "baseUrl": ".",               // raíz del proyecto
+    "paths": {
+      "@/*": ["src/*"]            // si quieres usar imports tipo "@/printing/printQueue"
+    }
+  },
+  "include": ["src"],             // asegúrate de que compile todo lo que está en src/
+  "exclude": ["node_modules"]
 }

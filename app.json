@@ -22,7 +22,8 @@
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#ffffff"
       },
-      "allowBackup": false
+      "allowBackup": false,
+      "usesCleartextTraffic": true  
     },
     "ios": { "supportsTablet": true },
     "web": { "favicon": "./assets/icon-1024.png" },
