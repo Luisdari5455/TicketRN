@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -31,11 +30,8 @@ export default function SinDpiScreen() {
   const [apellido, setApellido] = useState("");
   const scale = useSharedValue(1);
 
-  // ⏫ Flecha: coordenada absoluta Y
-  const [arrowTop, setArrowTop] = useState(insets.top + 120);
   const nameRef = useRef<TextInput>(null);
-  const SECRET_SAFE = 110; // evita el hotspot 100x100
-  const SHIFT = 44;        // cuánto arriba del input (ajústalo si quieres)
+  const lastNameRef = useRef<TextInput>(null); // 👈 para mover foco y poder “bump” al enviar
 
   const sessionId = useMemo(
     () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
@@ -63,21 +59,23 @@ export default function SinDpiScreen() {
     }, [])
   );
 
-  // ⚠️ NO toco tu manejo de idle / navegación
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
       setNombre("");
       setApellido("");
-            Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
+      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
       navigation.replace("Welcome");
     },
   });
 
   const handleNext = () => {
     if (!nombre.trim() || !apellido.trim()) {
-      Toast.show({ type: "info", text1: "Datos incompletos", text2: "Por favor, ingrese su nombre y apellido" });
-   
+      Toast.show({
+        type: "info",
+        text1: "Datos incompletos",
+        text2: "Por favor, ingrese su nombre y apellido",
+      });
       return;
     }
     navigation.navigate("Sections", {
@@ -86,8 +84,14 @@ export default function SinDpiScreen() {
     });
   };
 
-  const handleNombreChange = (t: string) => { setNombre(sanitize(t)); bump(); };
-  const handleApellidoChange = (t: string) => { setApellido(sanitize(t)); bump(); };
+  const handleNombreChange = (t: string) => {
+    setNombre(sanitize(t));
+    bump(); // 👈 teclear reinicia
+  };
+  const handleApellidoChange = (t: string) => {
+    setApellido(sanitize(t));
+    bump(); // 👈 teclear reinicia
+  };
 
   const safeBack = () => {
     if (navigation.canGoBack && navigation.canGoBack()) {
@@ -96,39 +100,53 @@ export default function SinDpiScreen() {
     }
     const parent = navigation.getParent?.();
     if (parent) {
-      try { parent.navigate("Home" as never); return; } catch {}
+      try {
+        parent.navigate("Home" as never);
+        return;
+      } catch {}
     }
-    try { navigation.reset({ index: 0, routes: [{ name: "Home" as never }] }); }
-    catch { navigation.reset({ index: 0, routes: [{ name: "Welcome" as never }] }); }
+    try {
+      navigation.reset({ index: 0, routes: [{ name: "Home" as never }] });
+    } catch {
+      navigation.reset({ index: 0, routes: [{ name: "Welcome" as never }] });
+    }
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <Pressable style={{ flex: 1 }} onTouchStart={bump}>
-        <LinearGradient colors={["#104c80", "#104c80", "#104c80", "#0f172a"]} style={styles.wrapper}>
-          {/* Flecha: absoluta respecto a toda la pantalla, ubicada con Y real del input */}
+        <LinearGradient
+          colors={["#104c80", "#104c80", "#104c80", "#0f172a"]}
+          style={styles.wrapper}
+        >
+          {/* Flecha fija en la esquina superior izquierda con Safe Area */}
           <TouchableOpacity
-            style={[styles.backButton, { top: Math.max(insets.top + SECRET_SAFE, arrowTop) }]}
-            onPress={() => { bump(); safeBack(); }}
-            activeOpacity={0.8}
-            hitSlop={{ top: 18, bottom: 18, left: 18, right: 18 }}
+            style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
+            onPress={() => {
+              bump();
+              safeBack();
+            }}
+            activeOpacity={0.85}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
             accessibilityRole="button"
             accessibilityLabel="Regresar"
           >
-            <FontAwesome5 name="arrow-left" size={24} color="#fff" />
+            <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
           </TouchableOpacity>
 
           <MotiView
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: "timing", duration: 700 }}
-            style={styles.container}
+            style={[styles.container, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 12 }]}
           >
             <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
             <Text style={styles.title}>Registro sin DPI</Text>
             <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
 
-            {/* Primer input: medimos su posición absoluta en pantalla */}
             <TextInput
               ref={nameRef}
               style={styles.input}
@@ -136,6 +154,8 @@ export default function SinDpiScreen() {
               placeholderTextColor="#9CA3AF"
               value={nombre}
               onChangeText={handleNombreChange}
+              onFocus={() => bump()}           // 👈 foco cuenta como actividad
+              onKeyPress={() => bump()}        // 👈 keypress cuenta como actividad
               keyboardType="default"
               inputMode="text"
               autoCapitalize="words"
@@ -144,22 +164,19 @@ export default function SinDpiScreen() {
               textContentType="name"
               contextMenuHidden
               maxLength={60}
-              onLayout={() => {
-                // esperamos al siguiente frame y medimos en ventana
-                requestAnimationFrame(() => {
-                  nameRef.current?.measureInWindow?.((x, y, w, h) => {
-                    if (typeof y === "number") setArrowTop(y - SHIFT);
-                  });
-                });
-              }}
+              returnKeyType="next"
+              onSubmitEditing={() => { bump(); lastNameRef.current?.focus(); }} // 👈
             />
 
             <TextInput
+              ref={lastNameRef}
               style={styles.input}
               placeholder="Apellido"
               placeholderTextColor="#9CA3AF"
               value={apellido}
               onChangeText={handleApellidoChange}
+              onFocus={() => bump()}           // 👈
+              onKeyPress={() => bump()}        // 👈
               keyboardType="default"
               inputMode="text"
               autoCapitalize="words"
@@ -168,12 +185,21 @@ export default function SinDpiScreen() {
               textContentType="familyName"
               contextMenuHidden
               maxLength={60}
+              returnKeyType="done"
+              onSubmitEditing={() => { bump(); handleNext(); }} // 👈
             />
 
             <View style={styles.buttonWrapper}>
               <Pressable
-                onPressIn={() => { scale.value = withSpring(0.95); }}
-                onPressOut={() => { scale.value = withSpring(1); bump(); handleNext(); }}
+                onPressIn={() => {
+                  bump();
+                  scale.value = withSpring(0.95);
+                }}
+                onPressOut={() => {
+                  scale.value = withSpring(1);
+                  bump();
+                  handleNext();
+                }}
               >
                 <Animated.View style={[styles.animatedButton, animatedStyle]}>
                   <Text style={styles.buttonText}>Continuar</Text>
@@ -189,19 +215,40 @@ export default function SinDpiScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
-  container: { justifyContent: "center", alignItems: "center", padding: 24, flex: 1 },
+  container: { justifyContent: "center", alignItems: "center", paddingHorizontal: 24, flex: 1 },
   icon: { marginBottom: 20 },
 
-  // Flecha blanca simple en el borde izquierdo
+  // Botón de regreso (flotante, circular, con sombra)
   backButton: {
     position: "absolute",
-    left: 20,
-    zIndex: 10,
-    padding: 10,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
   },
 
-  title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
-  subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 30, textAlign: "center", paddingHorizontal: 12 },
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#e5e7eb",
+    marginBottom: 30,
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
 
   input: {
     width: "90%",
@@ -220,6 +267,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+
   buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden" },
   animatedButton: {
     backgroundColor: "#1e40af",

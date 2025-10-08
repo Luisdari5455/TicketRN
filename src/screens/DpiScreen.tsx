@@ -14,11 +14,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import Toast from "react-native-toast-message";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { MotiView } from "moti";
 import { useIdleReset } from "../hooks/useIdleReset";
 import { getClientByDpi } from "../services/ticketService";
@@ -72,7 +68,6 @@ function splitFullName(full: string) {
   return { nombre: parts.slice(0, -1).join(" "), apellido: parts.slice(-1).join(" ") };
 }
 
-// Solo letras/espacios (incluye tildes y ñ)
 const sanitizeName = (raw: string) =>
   raw
     .normalize('NFC')
@@ -123,10 +118,7 @@ export default function DpiScreen() {
     try {
       navigation.replace('Welcome' as any);
     } catch {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Welcome' as any }],
-      } as any);
+      navigation.reset({ index: 0, routes: [{ name: 'Welcome' as any }] } as any);
     }
   }, [navigation]);
 
@@ -137,6 +129,7 @@ export default function DpiScreen() {
     }, [clearAll])
   );
 
+  // ⏱️ Hook de inactividad
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
@@ -145,6 +138,10 @@ export default function DpiScreen() {
       navigation.replace("Welcome" as any);
     },
   });
+
+  // ✅ Helper común para inputs: asegura que cualquier evento “cuente” como actividad
+  const bumpOnFocus = useCallback(() => bump(), [bump]);
+  const bumpOnKey = useCallback(() => bump(), [bump]);
 
   useEffect(() => {
     const run = async () => {
@@ -194,11 +191,7 @@ export default function DpiScreen() {
   const handleNext = () => {
     const result = validateCUI(dpi);
     if (!result.ok) {
-      Toast.show({
-        type: "error",
-        text1: "DPI inválido",
-        text2: result.reason || "Ingrese un número de DPI válido de 13 dígitos.",
-      });
+      Toast.show({ type: "error", text1: "DPI inválido", text2: result.reason || "Ingrese un número de DPI válido de 13 dígitos." });
     } else if (!nombre.trim() || !apellido.trim()) {
       Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
     } else {
@@ -210,19 +203,18 @@ export default function DpiScreen() {
     }
   };
 
-  // === Posición dinámica de la flecha (igual a tu flecha roja) ===
-  const [arrowTop, setArrowTop] = useState<number>(insets.top + 120); // valor seguro inicial
-  const MIN_TOP = insets.top + 110;   // evita hotspot 100x100
-  const SHIFT = 56;                   // cuánto arriba del primer input quieres la flecha
+  // Posición dinámica de la flecha (igual a tu versión)
+  const [arrowTop, setArrowTop] = useState<number>(insets.top + 120);
+  const MIN_TOP = insets.top + 110;
+  const SHIFT = 56;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient
         colors={['#104c80','#104c80','#104c80','#0f172a']}
         style={styles.container}
-        onTouchStart={bump}
+        onTouchStart={bump} // toques generales
       >
-        {/* Flecha blanca simple, colocada EXACTA por encima del primer input */}
         <TouchableOpacity
           style={[styles.backButton, { top: Math.max(MIN_TOP, arrowTop) }]}
           onPress={() => { bump(); safeBack(); }}
@@ -244,7 +236,7 @@ export default function DpiScreen() {
           <Text style={styles.title}>Registro con DPI</Text>
           <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
-          {/* DPI: SOLO NÚMEROS (13) */}
+          {/* DPI */}
           <TextInput
             ref={dpiRef}
             style={styles.input}
@@ -254,6 +246,7 @@ export default function DpiScreen() {
             maxLength={13}
             value={dpi}
             onChangeText={(text) => {
+              bump(); // 👈 teclear reinicia el timer
               const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
               setDpi(numericText);
               if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
@@ -261,11 +254,13 @@ export default function DpiScreen() {
                 lastQueried.current = "";
               }
             }}
+            onKeyPress={bumpOnKey}     // 👈 keypress reinicia
+            onFocus={bumpOnFocus}      // 👈 focus reinicia
             placeholderTextColor="#9CA3AF"
             contextMenuHidden
             autoCorrect={false}
             returnKeyType="next"
-            onSubmitEditing={() => nombreRef.current?.focus()}
+            onSubmitEditing={() => { bump(); nombreRef.current?.focus(); }}
             onLayout={(e) => {
               const y = e.nativeEvent.layout.y;
               setArrowTop(y - SHIFT);
@@ -278,7 +273,9 @@ export default function DpiScreen() {
             style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
             placeholder="Nombre"
             value={nombre}
-            onChangeText={text => setNombre(sanitizeName(text))}
+            onChangeText={(text) => { bump(); setNombre(sanitizeName(text)); }}
+            onKeyPress={bumpOnKey}
+            onFocus={bumpOnFocus}
             placeholderTextColor="#9CA3AF"
             keyboardType="default"
             inputMode="text"
@@ -291,7 +288,7 @@ export default function DpiScreen() {
             contextMenuHidden
             maxLength={60}
             returnKeyType="next"
-            onSubmitEditing={() => apellidoRef.current?.focus()}
+            onSubmitEditing={() => { bump(); apellidoRef.current?.focus(); }}
           />
 
           {/* APELLIDO */}
@@ -300,7 +297,9 @@ export default function DpiScreen() {
             style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
             placeholder="Apellido"
             value={apellido}
-            onChangeText={text => setApellido(sanitizeName(text))}
+            onChangeText={(text) => { bump(); setApellido(sanitizeName(text)); }}
+            onKeyPress={bumpOnKey}
+            onFocus={bumpOnFocus}
             placeholderTextColor="#9CA3AF"
             keyboardType="default"
             inputMode="text"
@@ -313,11 +312,11 @@ export default function DpiScreen() {
             contextMenuHidden
             maxLength={60}
             returnKeyType="done"
-            onSubmitEditing={handleNext}
+            onSubmitEditing={() => { bump(); handleNext(); }}
           />
 
           {locked && (
-            <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
+            <TouchableOpacity onPress={() => { bump(); setLocked(false); }} style={{ marginBottom: 8 }}>
               <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
             </TouchableOpacity>
           )}
@@ -325,9 +324,10 @@ export default function DpiScreen() {
           <View style={styles.buttonWrapper}>
             <TouchableOpacity
               activeOpacity={0.85}
-              onPressIn={() => { scale.value = withSpring(0.95); }}
+              onPressIn={() => { bump(); scale.value = withSpring(0.95); }}
               onPressOut={() => {
                 scale.value = withSpring(1);
+                bump();
                 handleNext();
               }}
             >
@@ -345,19 +345,10 @@ export default function DpiScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
   innerContainer: { justifyContent: "center", alignItems: "center" },
-
-  // Flecha blanca simple
-  backButton: {
-    position: "absolute",
-    left: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-
+  backButton: { position: "absolute", left: 20, zIndex: 10, padding: 10 },
   icon: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
   subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 20, textAlign: "center", paddingHorizontal: 12 },
-
   input: {
     width: "90%",
     backgroundColor: "#ffffff",
@@ -375,7 +366,6 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-
   buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden", marginTop: 10 },
   animatedButton: {
     backgroundColor: "#1e40af",

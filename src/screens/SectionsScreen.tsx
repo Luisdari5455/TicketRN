@@ -58,13 +58,9 @@ export default function SectionsScreen() {
   const [loading, setLoading] = useState(true);
 
   const [detailsVisible, setDetailsVisible] = useState(false);
-  const [detailsService, setDetailsService] = useState<ServiceType | null>(
-    null
-  );
+  const [detailsService, setDetailsService] = useState<ServiceType | null>(null);
 
-  const [submittingServiceId, setSubmittingServiceId] = useState<number | null>(
-    null
-  );
+  const [submittingServiceId, setSubmittingServiceId] = useState<number | null>(null);
   const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
@@ -81,14 +77,6 @@ export default function SectionsScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!sessionId) {
-
-      Toast.show({ type: "info", text1: "Sesión inválida Vuelve a iniciar el registro." });
-      navigation.replace("Welcome" as any);
-    }
-  }, [sessionId, navigation]);
-
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
@@ -97,6 +85,13 @@ export default function SectionsScreen() {
       navigation.replace("Welcome" as any);
     },
   });
+
+  useEffect(() => {
+    if (!sessionId) {
+      Toast.show({ type: "info", text1: "Sesión inválida Vuelve a iniciar el registro." });
+      navigation.replace("Welcome" as any);
+    }
+  }, [sessionId, navigation]);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -118,9 +113,7 @@ export default function SectionsScreen() {
       Animated.timing(sheetY, {
         toValue: detailsVisible ? 0 : 40,
         duration: detailsVisible ? 220 : 180,
-        easing: detailsVisible
-          ? Easing.out(Easing.cubic)
-          : Easing.in(Easing.cubic),
+        easing: detailsVisible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(overlayOpacity, {
@@ -148,44 +141,37 @@ export default function SectionsScreen() {
       Alert.alert(
         "Tiempo de espera agotado",
         "No se pudo completar la operación. Vuelve a intentarlo.",
-        [
-          {
-            text: "Aceptar",
-            onPress: () => navigation.replace("Welcome" as any),
-          },
-        ]
+        [{ text: "Aceptar", onPress: () => navigation.replace("Welcome" as any) }]
       );
     }, SUBMIT_TIMEOUT_MS);
   };
 
   const safeBack = useCallback(() => {
     if (detailsVisible && submittingServiceId === null) {
+      bump();
       setDetailsVisible(false);
       return;
     }
     if (navigation.canGoBack?.() && navigation.canGoBack()) {
+      bump();
       navigation.goBack();
       return;
     }
     const parent = navigation.getParent?.();
     if (parent) {
       try {
+        bump();
         (parent as any).navigate("Home");
         return;
       } catch {}
     }
     try {
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: "Home" }],
-      });
+      bump();
+      (navigation as any).reset({ index: 0, routes: [{ name: "Home" }] });
     } catch {
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: "Welcome" }],
-      });
+      (navigation as any).reset({ index: 0, routes: [{ name: "Welcome" }] });
     }
-  }, [detailsVisible, submittingServiceId, navigation]);
+  }, [detailsVisible, submittingServiceId, navigation, bump]);
 
   const handleSelect = async (section: ServiceType) => {
     if (submittingServiceId !== null) return;
@@ -195,9 +181,7 @@ export default function SectionsScreen() {
       setSubmittingServiceId(section.idService);
       startSafetyTimer();
 
-      const idempotencyKey = `${sessionId || "nosession"}:${dpi || "nodpi"}:${
-        section.idService
-      }`;
+      const idempotencyKey = `${sessionId || "nosession"}:${dpi || "nodpi"}:${section.idService}`;
 
       const payload: any = {
         name,
@@ -213,12 +197,10 @@ export default function SectionsScreen() {
       clearSafetyTimer();
       setSubmittingServiceId(null);
 
+      bump();
       navigation.navigate("Result" as any, { ticketInfo });
     } catch (error: any) {
-      console.error(
-        "Error al registrar ticket:",
-        error?.response?.data || error?.message || error
-      );
+      console.error("Error al registrar ticket:", error?.response?.data || error?.message || error);
       if (!isMountedRef.current) return;
       clearSafetyTimer();
       setSubmittingServiceId(null);
@@ -250,11 +232,7 @@ export default function SectionsScreen() {
     if (parts.length === 0) {
       if (!desc) return null;
       return (
-        <Text
-          style={styles.descFallback}
-          numberOfLines={2}
-          ellipsizeMode="tail"
-        >
+        <Text style={styles.descFallback} numberOfLines={2} ellipsizeMode="tail">
           {desc}
         </Text>
       );
@@ -271,7 +249,10 @@ export default function SectionsScreen() {
         ))}
         {restCount > 0 && (
           <TouchableOpacity
-            onPress={onOpenMore}
+            onPress={() => {
+              bump();
+              onOpenMore && onOpenMore();
+            }}
             style={[styles.chip, styles.moreChip]}
             activeOpacity={0.85}
             disabled={submittingServiceId !== null}
@@ -287,15 +268,13 @@ export default function SectionsScreen() {
     <LinearGradient
       colors={[COL_DEEP, COL_DEEP, COL_DEEP, COL_NAVY]}
       style={[styles.container, { paddingTop: insets.top + 12 }]}
-      onTouchStart={bump}
+      onTouchStart={bump} // toques generales
     >
-      {/* Botón regresar: píldora visible con texto */}
+      {/* Back */}
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => {
-          bump();
-          safeBack();
-        }}
+        onPress={safeBack}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <FontAwesome5 name="arrow-left" size={24} color="#fff" />
       </TouchableOpacity>
@@ -313,6 +292,12 @@ export default function SectionsScreen() {
         keyExtractor={(item) => item?.idService?.toString()}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        // 👇👇 toda interacción de scroll cuenta como actividad
+        onScroll={bump}
+        onMomentumScrollBegin={bump}
+        onScrollBeginDrag={bump}
+        onScrollEndDrag={bump}
+        scrollEventThrottle={16}
         renderItem={({ item, index }) => {
           const disabled = submittingServiceId !== null;
           const isSubmittingThis = submittingServiceId === item.idService;
@@ -324,33 +309,23 @@ export default function SectionsScreen() {
               transition={{ type: "timing", delay: index * 100 }}
             >
               <TouchableOpacity
-                style={[
-                  styles.cardButton,
-                  disabled && { opacity: isSubmittingThis ? 1 : 0.6 },
-                ]}
+                style={[styles.cardButton, disabled && { opacity: isSubmittingThis ? 1 : 0.6 }]}
                 onPress={() => handleSelect(item)}
+                onPressIn={bump}
                 activeOpacity={0.9}
                 disabled={disabled}
               >
-                <FontAwesome5
-                  name="chevron-right"
-                  size={18}
-                  color="#fff"
-                  style={styles.icon}
-                />
+                <FontAwesome5 name="chevron-right" size={18} color="#fff" style={styles.icon} />
                 <Text style={styles.cardTitle}>{item.name}</Text>
 
-                <View
-                  style={{ width: "100%", marginTop: 8, alignItems: "center" }}
-                >
-                  {renderPreviewChips(item.description, () =>
-                    openDetails(item)
-                  )}
+                <View style={{ width: "100%", marginTop: 8, alignItems: "center" }}>
+                  {renderPreviewChips(item.description, () => openDetails(item))}
                 </View>
 
                 <TouchableOpacity
                   style={styles.infoButton}
                   onPress={() => openDetails(item)}
+                  onPressIn={bump}
                   activeOpacity={0.85}
                   disabled={disabled}
                 >
@@ -360,15 +335,18 @@ export default function SectionsScreen() {
                 {isSubmittingThis && (
                   <View style={styles.inlineLoading}>
                     <ActivityIndicator size="small" color="#fff" />
-                    <Text style={styles.inlineLoadingText}>
-                      Generando ticket…
-                    </Text>
+                    <Text style={styles.inlineLoadingText}>Generando ticket…</Text>
                   </View>
                 )}
               </TouchableOpacity>
             </MotiView>
           );
         }}
+        ListEmptyComponent={
+          !loading ? (
+            <Text style={{ color: "#e5e7eb" }}>No hay secciones disponibles.</Text>
+          ) : null
+        }
       />
 
       {/* ===== Popup CENTRADO ===== */}
@@ -376,15 +354,23 @@ export default function SectionsScreen() {
         visible={detailsVisible}
         transparent
         animationType="none"
-        onRequestClose={closeDetails}
+        onRequestClose={() => {
+          bump();
+          closeDetails();
+        }}
+        onShow={bump}
       >
-        <Animated.View
-          style={[styles.modalOverlay, { opacity: overlayOpacity }]}
-        />
+        {/* overlay oscurecido */}
+        <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
+
+        {/* cierra al tocar fuera, también cuenta como actividad */}
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject as any}
           activeOpacity={1}
-          onPress={closeDetails}
+          onPress={() => {
+            bump();
+            closeDetails();
+          }}
         />
 
         <View pointerEvents="box-none" style={styles.sheetContainer}>
@@ -414,7 +400,10 @@ export default function SectionsScreen() {
                     {detailsService?.name || "Detalles"}
                   </Text>
                   <TouchableOpacity
-                    onPress={closeDetails}
+                    onPress={() => {
+                      bump();
+                      closeDetails();
+                    }}
                     style={styles.sheetCloseBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     disabled={submittingServiceId !== null}
@@ -429,6 +418,12 @@ export default function SectionsScreen() {
                   style={{ flex: 1 }}
                   contentContainerStyle={styles.sheetBody}
                   showsVerticalScrollIndicator
+                  // 👇 scroll en el modal también reinicia
+                  onScroll={bump}
+                  onScrollBeginDrag={bump}
+                  onMomentumScrollBegin={bump}
+                  onScrollEndDrag={bump}
+                  scrollEventThrottle={16}
                 >
                   {(() => {
                     const parts = (detailsService?.description || "")
@@ -457,7 +452,10 @@ export default function SectionsScreen() {
                 <View style={styles.sheetFooter}>
                   <TouchableOpacity
                     style={styles.modalCloseBtn}
-                    onPress={closeDetails}
+                    onPress={() => {
+                      bump();
+                      closeDetails();
+                    }}
                     activeOpacity={0.9}
                     disabled={submittingServiceId !== null}
                   >
@@ -471,11 +469,7 @@ export default function SectionsScreen() {
       </Modal>
 
       {/* Overlay global de carga */}
-      <Modal
-        visible={submittingServiceId !== null}
-        transparent
-        animationType="fade"
-      >
+      <Modal visible={submittingServiceId !== null} transparent animationType="fade" onShow={bump}>
         <View style={styles.globalOverlay}>
           <View style={styles.globalLoaderCard}>
             <ActivityIndicator size="large" />
@@ -488,17 +482,8 @@ export default function SectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-
-  // Back pill
-  backButton: {
-    position: "absolute",
-    left: 16,
-    zIndex: 20,
-  },
+  container: { flex: 1, paddingHorizontal: 20 },
+  backButton: { position: "absolute", left: 16, zIndex: 20 },
   backPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -512,12 +497,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
-  backLabel: {
-    color: "#0f172a",
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
-  },
+  backLabel: { color: "#0f172a", fontSize: 16, fontWeight: "700", marginLeft: 8 },
 
   title: {
     fontSize: 30,
@@ -527,10 +507,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     letterSpacing: 0.3,
   },
-  listContainer: {
-    alignItems: "center",
-    paddingBottom: 40,
-  },
+  listContainer: { alignItems: "center", paddingBottom: 40 },
   cardButton: {
     width: width * 0.9,
     backgroundColor: "#2563EB",
@@ -562,12 +539,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8 as any,
-    justifyContent: "center",
-  },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 as any, justifyContent: "center" },
   chip: {
     backgroundColor: "rgba(255,255,255,0.14)",
     borderColor: "rgba(255,255,255,0.24)",
@@ -578,27 +550,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 6,
   },
-  moreChip: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-  },
-  chipText: {
-    color: "#fff",
-    fontSize: 13.5,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  descFallback: {
-    color: "#e5e7eb",
-    fontSize: 14,
-    textAlign: "center",
-  },
+  moreChip: { backgroundColor: "rgba(255,255,255,0.25)" },
+  chipText: { color: "#fff", fontSize: 13.5, fontWeight: "700", letterSpacing: 0.2 },
+  descFallback: { color: "#e5e7eb", fontSize: 14, textAlign: "center" },
 
-  infoButton: {
-    position: "absolute",
-    right: 12,
-    top: 12,
-    padding: 6,
-  },
+  infoButton: { position: "absolute", right: 12, top: 12, padding: 6 },
 
   inlineLoading: {
     position: "absolute",
@@ -612,22 +568,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 12,
   },
-  inlineLoadingText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  inlineLoadingText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10,12,18,0.55)",
-  },
-  sheetContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(10,12,18,0.55)" },
+  sheetContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16 },
   sheet: {
     borderRadius: 24,
     shadowColor: "#000",
@@ -638,51 +582,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: COL_NAVY,
   },
-  sheetGradient: {
-    flex: 1,
-    borderRadius: 24,
-    overflow: "hidden",
-  },
+  sheetGradient: { flex: 1, borderRadius: 24, overflow: "hidden" },
   handleWrap: { alignItems: "center", paddingTop: 10, paddingBottom: 4 },
-  handle: {
-    width: 48,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.5)",
-  },
-  sheetHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sheetTitle: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
+  handle: { width: 48, height: 5, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.5)" },
+  sheetHeader: { paddingHorizontal: 16, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
+  sheetTitle: { color: "#ffffff", fontSize: 18, fontWeight: "800", letterSpacing: 0.3 },
   sheetCloseBtn: { position: "absolute", right: 12, top: 10, padding: 6 },
-  headerDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
+  headerDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.18)" },
 
-  sheetBody: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-  sheetDescText: {
-    color: "#ffffff",
-    opacity: 0.95,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  modalChipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
+  sheetBody: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
+  sheetDescText: { color: "#ffffff", opacity: 0.95, fontSize: 16, lineHeight: 22 },
+  modalChipsWrap: { flexDirection: "row", flexWrap: "wrap" },
   modalChip: {
     backgroundColor: "rgba(255,255,255,0.16)",
     borderColor: "rgba(255,255,255,0.28)",
@@ -693,11 +603,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
-  modalChipText: {
-    color: "#fff",
-    fontSize: 14.5,
-    fontWeight: "700",
-  },
+  modalChipText: { color: "#fff", fontSize: 14.5, fontWeight: "700" },
   sheetFooter: {
     paddingHorizontal: 16,
     paddingBottom: 18,
@@ -716,19 +622,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.28)",
   },
-  modalCloseText: {
-    color: "#fff",
-    fontWeight: "800",
-    fontSize: 16,
-    letterSpacing: 0.3,
-  },
+  modalCloseText: { color: "#fff", fontWeight: "800", fontSize: 16, letterSpacing: 0.3 },
 
-  globalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  globalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },
   globalLoaderCard: {
     backgroundColor: "#fff",
     paddingVertical: 18,
@@ -737,9 +633,5 @@ const styles = StyleSheet.create({
     minWidth: 180,
     alignItems: "center",
   },
-  globalLoaderText: {
-    marginTop: 10,
-    fontWeight: "700",
-    color: "#111827",
-  },
+  globalLoaderText: { marginTop: 10, fontWeight: "700", color: "#111827" },
 });
