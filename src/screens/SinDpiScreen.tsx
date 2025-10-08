@@ -19,6 +19,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-na
 import { MotiView } from "moti";
 import { useIdleReset } from "../hooks/useIdleReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "SinDPI">;
 
@@ -68,14 +69,15 @@ export default function SinDpiScreen() {
     onTimeout: () => {
       setNombre("");
       setApellido("");
-      Alert.alert("Sesión reiniciada", "Sin actividad, se limpió el formulario.");
+            Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
       navigation.replace("Welcome");
     },
   });
 
   const handleNext = () => {
     if (!nombre.trim() || !apellido.trim()) {
-      Alert.alert("Datos incompletos", "Por favor, ingrese su nombre y apellido");
+      Toast.show({ type: "info", text1: "Datos incompletos", text2: "Por favor, ingrese su nombre y apellido" });
+   
       return;
     }
     navigation.navigate("Sections", {
