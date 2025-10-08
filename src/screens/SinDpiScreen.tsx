@@ -6,8 +6,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ScrollView,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -31,7 +33,7 @@ export default function SinDpiScreen() {
   const scale = useSharedValue(1);
 
   const nameRef = useRef<TextInput>(null);
-  const lastNameRef = useRef<TextInput>(null); // 👈 para mover foco y poder “bump” al enviar
+  const lastNameRef = useRef<TextInput>(null);
 
   const sessionId = useMemo(
     () => (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
@@ -86,11 +88,11 @@ export default function SinDpiScreen() {
 
   const handleNombreChange = (t: string) => {
     setNombre(sanitize(t));
-    bump(); // 👈 teclear reinicia
+    bump();
   };
   const handleApellidoChange = (t: string) => {
     setApellido(sanitize(t));
-    bump(); // 👈 teclear reinicia
+    bump();
   };
 
   const safeBack = () => {
@@ -112,113 +114,150 @@ export default function SinDpiScreen() {
     }
   };
 
+  // 👉 Tap fuera para cerrar teclado + contar actividad
+  const dismissAndBump = () => {
+    Keyboard.dismiss();
+    bump();
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={insets.top + 8} // importante para no tapar el header
     >
-      <Pressable style={{ flex: 1 }} onTouchStart={bump}>
-        <LinearGradient
-          colors={["#104c80", "#104c80", "#104c80", "#0f172a"]}
-          style={styles.wrapper}
-        >
-          {/* Flecha fija en la esquina superior izquierda con Safe Area */}
-          <TouchableOpacity
-            style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
-            onPress={() => {
-              bump();
-              safeBack();
-            }}
-            activeOpacity={0.85}
-            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-            accessibilityRole="button"
-            accessibilityLabel="Regresar"
+      <TouchableWithoutFeedback onPress={dismissAndBump} accessible={false}>
+        <View style={{ flex: 1 }}>
+          <LinearGradient
+            colors={["#104c80", "#104c80", "#104c80", "#0f172a"]}
+            style={styles.wrapper}
           >
-            <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
-          </TouchableOpacity>
+            {/* Flecha fija con Safe Area */}
+            <TouchableOpacity
+              style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
+              onPress={() => {
+                bump();
+                safeBack();
+              }}
+              activeOpacity={0.85}
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+              accessibilityRole="button"
+              accessibilityLabel="Regresar"
+            >
+              <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
+            </TouchableOpacity>
 
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: "timing", duration: 700 }}
-            style={[styles.container, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 12 }]}
-          >
-            <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
-            <Text style={styles.title}>Registro sin DPI</Text>
-            <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
-
-            <TextInput
-              ref={nameRef}
-              style={styles.input}
-              placeholder="Nombre"
-              placeholderTextColor="#9CA3AF"
-              value={nombre}
-              onChangeText={handleNombreChange}
-              onFocus={() => bump()}           // 👈 foco cuenta como actividad
-              onKeyPress={() => bump()}        // 👈 keypress cuenta como actividad
-              keyboardType="default"
-              inputMode="text"
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="name"
-              contextMenuHidden
-              maxLength={60}
-              returnKeyType="next"
-              onSubmitEditing={() => { bump(); lastNameRef.current?.focus(); }} // 👈
-            />
-
-            <TextInput
-              ref={lastNameRef}
-              style={styles.input}
-              placeholder="Apellido"
-              placeholderTextColor="#9CA3AF"
-              value={apellido}
-              onChangeText={handleApellidoChange}
-              onFocus={() => bump()}           // 👈
-              onKeyPress={() => bump()}        // 👈
-              keyboardType="default"
-              inputMode="text"
-              autoCapitalize="words"
-              autoCorrect={false}
-              importantForAutofill="no"
-              textContentType="familyName"
-              contextMenuHidden
-              maxLength={60}
-              returnKeyType="done"
-              onSubmitEditing={() => { bump(); handleNext(); }} // 👈
-            />
-
-            <View style={styles.buttonWrapper}>
-              <Pressable
-                onPressIn={() => {
-                  bump();
-                  scale.value = withSpring(0.95);
-                }}
-                onPressOut={() => {
-                  scale.value = withSpring(1);
-                  bump();
-                  handleNext();
-                }}
+            {/* Scroll que se contrae con teclado */}
+            <ScrollView
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 16 },
+              ]}
+              keyboardShouldPersistTaps="handled" // 🔑 permite tapear fuera y cerrar teclado
+              keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
+              // iOS moderno ajusta insets automáticamente
+              automaticallyAdjustKeyboardInsets={true}
+            >
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: "timing", duration: 700 }}
+                style={styles.container}
               >
-                <Animated.View style={[styles.animatedButton, animatedStyle]}>
-                  <Text style={styles.buttonText}>Continuar</Text>
-                </Animated.View>
-              </Pressable>
-            </View>
-          </MotiView>
-        </LinearGradient>
-      </Pressable>
+                <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
+                <Text style={styles.title}>Registro sin DPI</Text>
+                <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
+
+                <TextInput
+                  ref={nameRef}
+                  style={styles.input}
+                  placeholder="Nombre"
+                  placeholderTextColor="#9CA3AF"
+                  value={nombre}
+                  onChangeText={handleNombreChange}
+                  onFocus={bump}
+                  keyboardType="default"
+                  inputMode="text"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  textContentType="name"
+                  contextMenuHidden
+                  maxLength={60}
+                  returnKeyType="next"
+                  blurOnSubmit={false} // 🔑 no cerrar el teclado al pasar al siguiente
+                  onSubmitEditing={() => {
+                    bump();
+                    lastNameRef.current?.focus();
+                  }}
+                />
+
+                <TextInput
+                  ref={lastNameRef}
+                  style={styles.input}
+                  placeholder="Apellido"
+                  placeholderTextColor="#9CA3AF"
+                  value={apellido}
+                  onChangeText={handleApellidoChange}
+                  onFocus={bump}
+                  keyboardType="default"
+                  inputMode="text"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  textContentType="familyName"
+                  contextMenuHidden
+                  maxLength={60}
+                  returnKeyType="done"
+                  blurOnSubmit={true} // 🔑 cerrar teclado al terminar
+                  onSubmitEditing={() => {
+                    bump();
+                    Keyboard.dismiss();
+                    handleNext();
+                  }}
+                />
+
+                <View style={styles.buttonWrapper}>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPressIn={() => {
+                      bump();
+                      scale.value = withSpring(0.95);
+                    }}
+                    onPressOut={() => {
+                      scale.value = withSpring(1);
+                    }}
+                    onPress={() => {
+                      bump();
+                      Keyboard.dismiss();
+                      handleNext();
+                    }}
+                  >
+                    <Animated.View style={[styles.animatedButton, animatedStyle]}>
+                      <Text style={styles.buttonText}>Continuar</Text>
+                    </Animated.View>
+                  </TouchableOpacity>
+                </View>
+              </MotiView>
+            </ScrollView>
+          </LinearGradient>
+        </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
-  container: { justifyContent: "center", alignItems: "center", paddingHorizontal: 24, flex: 1 },
+  scrollContent: { flexGrow: 1 }, // 🔑 permite que el contenido “suba” con el teclado
+  container: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    flexGrow: 1,
+  },
   icon: { marginBottom: 20 },
 
-  // Botón de regreso (flotante, circular, con sombra)
   backButton: {
     position: "absolute",
     zIndex: 20,

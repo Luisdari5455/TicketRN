@@ -16,6 +16,7 @@
     "android": {
       "package": "com.tuempresa.ticketrn",
       "versionCode": 6,
+      "softwareKeyboardLayoutMode": "pan",
       "permissions": ["INTERNET", "WAKE_LOCK", "BLUETOOTH_CONNECT"],
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {

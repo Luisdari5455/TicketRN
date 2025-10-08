@@ -7,6 +7,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ScrollView,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -129,7 +132,6 @@ export default function DpiScreen() {
     }, [clearAll])
   );
 
-  // ⏱️ Hook de inactividad
   const { bump } = useIdleReset({
     timeoutMs: 60000,
     onTimeout: () => {
@@ -139,7 +141,6 @@ export default function DpiScreen() {
     },
   });
 
-  // ✅ Helper común para inputs: asegura que cualquier evento “cuente” como actividad
   const bumpOnFocus = useCallback(() => bump(), [bump]);
   const bumpOnKey = useCallback(() => bump(), [bump]);
 
@@ -195,6 +196,7 @@ export default function DpiScreen() {
     } else if (!nombre.trim() || !apellido.trim()) {
       Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
     } else {
+      Keyboard.dismiss();
       navigation.navigate("Sections" as any, {
         dpi: dpi.replace(/\D/g, ""),
         name: `${nombre.trim()} ${apellido.trim()}`,
@@ -203,152 +205,189 @@ export default function DpiScreen() {
     }
   };
 
-  // Posición dinámica de la flecha (igual a tu versión)
-  const [arrowTop, setArrowTop] = useState<number>(insets.top + 120);
-  const MIN_TOP = insets.top + 110;
-  const SHIFT = 56;
+  const dismissAndBump = () => {
+    Keyboard.dismiss();
+    bump();
+  };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <LinearGradient
-        colors={['#104c80','#104c80','#104c80','#0f172a']}
-        style={styles.container}
-        onTouchStart={bump} // toques generales
-      >
-        <TouchableOpacity
-          style={[styles.backButton, { top: Math.max(MIN_TOP, arrowTop) }]}
-          onPress={() => { bump(); safeBack(); }}
-          activeOpacity={0.85}
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-          accessibilityRole="button"
-          accessibilityLabel="Regresar"
-        >
-          <FontAwesome5 name="arrow-left" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: "timing", duration: 700 }}
-          style={styles.innerContainer}
-        >
-          <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-          <Text style={styles.title}>Registro con DPI</Text>
-          <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
-
-          {/* DPI */}
-          <TextInput
-            ref={dpiRef}
-            style={styles.input}
-            keyboardType="number-pad"
-            inputMode="numeric"
-            placeholder="DPI: 1234567890123"
-            maxLength={13}
-            value={dpi}
-            onChangeText={(text) => {
-              bump(); // 👈 teclear reinicia el timer
-              const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
-              setDpi(numericText);
-              if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
-                clearAutoFilled();
-                lastQueried.current = "";
-              }
-            }}
-            onKeyPress={bumpOnKey}     // 👈 keypress reinicia
-            onFocus={bumpOnFocus}      // 👈 focus reinicia
-            placeholderTextColor="#9CA3AF"
-            contextMenuHidden
-            autoCorrect={false}
-            returnKeyType="next"
-            onSubmitEditing={() => { bump(); nombreRef.current?.focus(); }}
-            onLayout={(e) => {
-              const y = e.nativeEvent.layout.y;
-              setArrowTop(y - SHIFT);
-            }}
-          />
-
-          {/* NOMBRE */}
-          <TextInput
-            ref={nombreRef}
-            style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-            placeholder="Nombre"
-            value={nombre}
-            onChangeText={(text) => { bump(); setNombre(sanitizeName(text)); }}
-            onKeyPress={bumpOnKey}
-            onFocus={bumpOnFocus}
-            placeholderTextColor="#9CA3AF"
-            keyboardType="default"
-            inputMode="text"
-            autoCapitalize="words"
-            autoCorrect={false}
-            importantForAutofill="no"
-            textContentType="name"
-            autoComplete="name"
-            editable={!locked}
-            contextMenuHidden
-            maxLength={60}
-            returnKeyType="next"
-            onSubmitEditing={() => { bump(); apellidoRef.current?.focus(); }}
-          />
-
-          {/* APELLIDO */}
-          <TextInput
-            ref={apellidoRef}
-            style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-            placeholder="Apellido"
-            value={apellido}
-            onChangeText={(text) => { bump(); setApellido(sanitizeName(text)); }}
-            onKeyPress={bumpOnKey}
-            onFocus={bumpOnFocus}
-            placeholderTextColor="#9CA3AF"
-            keyboardType="default"
-            inputMode="text"
-            autoCapitalize="words"
-            autoCorrect={false}
-            importantForAutofill="no"
-            textContentType="familyName"
-            autoComplete="name-family"
-            editable={!locked}
-            contextMenuHidden
-            maxLength={60}
-            returnKeyType="done"
-            onSubmitEditing={() => { bump(); handleNext(); }}
-          />
-
-          {locked && (
-            <TouchableOpacity onPress={() => { bump(); setLocked(false); }} style={{ marginBottom: 8 }}>
-              <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.buttonWrapper}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={insets.top + 8}
+    >
+      <TouchableWithoutFeedback onPress={dismissAndBump} accessible={false}>
+        <View style={{ flex: 1 }}>
+          <LinearGradient
+            colors={['#104c80','#104c80','#104c80','#0f172a']}
+            style={styles.wrapper}
+          >
+            {/* Flecha fija, circular, respeta Safe Area */}
             <TouchableOpacity
+              style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
+              onPress={() => { bump(); safeBack(); }}
               activeOpacity={0.85}
-              onPressIn={() => { bump(); scale.value = withSpring(0.95); }}
-              onPressOut={() => {
-                scale.value = withSpring(1);
-                bump();
-                handleNext();
-              }}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              accessibilityRole="button"
+              accessibilityLabel="Regresar"
             >
-              <Animated.View style={[styles.animatedButton, animatedStyle]}>
-                <Text style={styles.buttonText}>Continuar</Text>
-              </Animated.View>
+              <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
             </TouchableOpacity>
-          </View>
-        </MotiView>
-      </LinearGradient>
+
+            <ScrollView
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 16 },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
+              automaticallyAdjustKeyboardInsets={true}
+            >
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: "timing", duration: 700 }}
+                style={styles.inner}
+              >
+                <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
+                <Text style={styles.title}>Registro con DPI</Text>
+                <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
+
+                {/* DPI */}
+                <TextInput
+                  ref={dpiRef}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  placeholder="DPI: 1234567890123"
+                  maxLength={13}
+                  value={dpi}
+                  onChangeText={(text) => {
+                    bump();
+                    const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
+                    setDpi(numericText);
+                    if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
+                      clearAutoFilled();
+                      lastQueried.current = "";
+                    }
+                  }}
+                  onKeyPress={bumpOnKey}
+                  onFocus={bumpOnFocus}
+                  placeholderTextColor="#9CA3AF"
+                  contextMenuHidden
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => { bump(); nombreRef.current?.focus(); }}
+                />
+
+                {/* Nombre */}
+                <TextInput
+                  ref={nombreRef}
+                  style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+                  placeholder="Nombre"
+                  value={nombre}
+                  onChangeText={(text) => { bump(); setNombre(sanitizeName(text)); }}
+                  onKeyPress={bumpOnKey}
+                  onFocus={bumpOnFocus}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="default"
+                  inputMode="text"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  textContentType="name"
+                  autoComplete="name"
+                  editable={!locked}
+                  contextMenuHidden
+                  maxLength={60}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => { bump(); apellidoRef.current?.focus(); }}
+                />
+
+                {/* Apellido */}
+                <TextInput
+                  ref={apellidoRef}
+                  style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
+                  placeholder="Apellido"
+                  value={apellido}
+                  onChangeText={(text) => { bump(); setApellido(sanitizeName(text)); }}
+                  onKeyPress={bumpOnKey}
+                  onFocus={bumpOnFocus}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="default"
+                  inputMode="text"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  textContentType="familyName"
+                  autoComplete="name-family"
+                  editable={!locked}
+                  contextMenuHidden
+                  maxLength={60}
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  onSubmitEditing={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                />
+
+                {locked && (
+                  <TouchableOpacity onPress={() => { bump(); setLocked(false); }} style={{ marginBottom: 8 }}>
+                    <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.buttonWrapper}>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPressIn={() => { bump(); scale.value = withSpring(0.95); }}
+                    onPressOut={() => { scale.value = withSpring(1); }}
+                    onPress={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                  >
+                    <Animated.View style={[styles.animatedButton, animatedStyle]}>
+                      <Text style={styles.buttonText}>Continuar</Text>
+                    </Animated.View>
+                  </TouchableOpacity>
+                </View>
+              </MotiView>
+            </ScrollView>
+          </LinearGradient>
+        </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
-  innerContainer: { justifyContent: "center", alignItems: "center" },
-  backButton: { position: "absolute", left: 20, zIndex: 10, padding: 10 },
+  wrapper: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  inner: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    flexGrow: 1,
+  },
+
+  backButton: {
+    position: "absolute",
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
   icon: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
   subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 20, textAlign: "center", paddingHorizontal: 12 },
+
   input: {
     width: "90%",
     backgroundColor: "#ffffff",
@@ -366,6 +405,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+
   buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden", marginTop: 10 },
   animatedButton: {
     backgroundColor: "#1e40af",

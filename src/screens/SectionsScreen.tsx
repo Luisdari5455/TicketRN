@@ -268,15 +268,18 @@ export default function SectionsScreen() {
     <LinearGradient
       colors={[COL_DEEP, COL_DEEP, COL_DEEP, COL_NAVY]}
       style={[styles.container, { paddingTop: insets.top + 12 }]}
-      onTouchStart={bump} // toques generales
+      onTouchStart={bump}
     >
-      {/* Back */}
+      {/* Flecha igual a SinDPI/DPI: fija, circular y translúcida con safe area */}
       <TouchableOpacity
-        style={styles.backButton}
+        style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
         onPress={safeBack}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        activeOpacity={0.85}
+        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        accessibilityRole="button"
+        accessibilityLabel="Regresar"
       >
-        <FontAwesome5 name="arrow-left" size={24} color="#fff" />
+        <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
       </TouchableOpacity>
 
       <MotiView
@@ -289,10 +292,9 @@ export default function SectionsScreen() {
 
       <FlatList
         data={sections}
-        keyExtractor={(item) => item?.idService?.toString()}
+        keyExtractor={(item) => item?.idService?.toString() || String(item?.idService)}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        // 👇👇 toda interacción de scroll cuenta como actividad
         onScroll={bump}
         onMomentumScrollBegin={bump}
         onScrollBeginDrag={bump}
@@ -343,9 +345,7 @@ export default function SectionsScreen() {
           );
         }}
         ListEmptyComponent={
-          !loading ? (
-            <Text style={{ color: "#e5e7eb" }}>No hay secciones disponibles.</Text>
-          ) : null
+          !loading ? <Text style={{ color: "#e5e7eb" }}>No hay secciones disponibles.</Text> : null
         }
       />
 
@@ -360,10 +360,7 @@ export default function SectionsScreen() {
         }}
         onShow={bump}
       >
-        {/* overlay oscurecido */}
         <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
-
-        {/* cierra al tocar fuera, también cuenta como actividad */}
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject as any}
           activeOpacity={1}
@@ -372,7 +369,6 @@ export default function SectionsScreen() {
             closeDetails();
           }}
         />
-
         <View pointerEvents="box-none" style={styles.sheetContainer}>
           <Animated.View
             style={[
@@ -418,7 +414,6 @@ export default function SectionsScreen() {
                   style={{ flex: 1 }}
                   contentContainerStyle={styles.sheetBody}
                   showsVerticalScrollIndicator
-                  // 👇 scroll en el modal también reinicia
                   onScroll={bump}
                   onScrollBeginDrag={bump}
                   onMomentumScrollBegin={bump}
@@ -483,7 +478,25 @@ export default function SectionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  backButton: { position: "absolute", left: 16, zIndex: 20 },
+
+  // ✅ misma flecha que SinDPI/DPI
+  backButton: {
+    position: "absolute",
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  // (puedes borrar backPill/backLabel si ya no los usas)
   backPill: {
     flexDirection: "row",
     alignItems: "center",
