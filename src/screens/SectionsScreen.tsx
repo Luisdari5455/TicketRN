@@ -271,16 +271,19 @@ export default function SectionsScreen() {
       onTouchStart={bump}
     >
       {/* Flecha igual a SinDPI/DPI: fija, circular y translúcida con safe area */}
-      <TouchableOpacity
-        style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
-        onPress={safeBack}
-        activeOpacity={0.85}
-        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-        accessibilityRole="button"
-        accessibilityLabel="Regresar"
-      >
-        <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
-      </TouchableOpacity>
+ <TouchableOpacity
+  style={[
+    styles.backButton,
+    { top: insets.top + 12, left: 75 }  // ← movida un poco a la derecha
+  ]}
+  onPress={safeBack}
+  activeOpacity={0.85}
+  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+  accessibilityRole="button"
+  accessibilityLabel="Regresar"
+>
+  <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
+</TouchableOpacity>
 
       <MotiView
         from={{ opacity: 0, translateY: -20 }}

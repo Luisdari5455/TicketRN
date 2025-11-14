@@ -420,7 +420,7 @@ inlineBackButton: {
   shadowRadius: 4,
   elevation: 5,
   position: "absolute", // 🔑 AGREGAR esto
-  left: 48, // 🔑 AQUÍ AJUSTAS: más negativo = más a la izquierda (SOLO LA FLECHA)
+  left: 100, // 🔑 AQUÍ AJUSTAS: más negativo = más a la izquierda (SOLO LA FLECHA)
   zIndex: 10,
 },
 
