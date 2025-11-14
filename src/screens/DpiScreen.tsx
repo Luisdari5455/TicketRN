@@ -222,17 +222,8 @@ export default function DpiScreen() {
             colors={['#104c80','#104c80','#104c80','#0f172a']}
             style={styles.wrapper}
           >
-            {/* Flecha fija, circular, respeta Safe Area */}
-            <TouchableOpacity
-              style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
-              onPress={() => { bump(); safeBack(); }}
-              activeOpacity={0.85}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-              accessibilityRole="button"
-              accessibilityLabel="Regresar"
-            >
-              <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
-            </TouchableOpacity>
+            
+ 
 
             <ScrollView
               contentContainerStyle={[
@@ -250,7 +241,24 @@ export default function DpiScreen() {
                 style={styles.inner}
               >
                 <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-                <Text style={styles.title}>Registro con DPI</Text>
+                
+                {/* Header con título y flecha integrados */}
+  
+<View style={styles.headerContainer}>
+  <View style={styles.titleWrapper}>
+    <TouchableOpacity
+      style={styles.inlineBackButton}
+      onPress={() => { bump(); safeBack(); }}
+      activeOpacity={0.85}
+      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+    >
+      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
+    </TouchableOpacity>
+    <Text style={styles.title}>Registro con DPI</Text>
+  </View>
+</View>
+               
+                
                 <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
                 {/* DPI */}
@@ -368,6 +376,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
+  // Flecha en posición absoluta - VISIBLE
   backButton: {
     position: "absolute",
     zIndex: 20,
@@ -384,9 +393,51 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 
+  // Header con título y flecha integrados
+  headerContainer: {
+    width: "100%",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+titleWrapper: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center", // 🔑 MANTÉN "center" para centrar todo
+  width: "100%",
+  position: "relative", // 🔑 AGREGAR esto
+},
+inlineBackButton: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: "rgba(255,255,255,0.18)",
+  alignItems: "center",
+  justifyContent: "center",
+  marginRight: 10,
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowOffset: { width: 0, height: 2 },
+  shadowRadius: 4,
+  elevation: 5,
+  position: "absolute", // 🔑 AGREGAR esto
+  left: 48, // 🔑 AQUÍ AJUSTAS: más negativo = más a la izquierda (SOLO LA FLECHA)
+  zIndex: 10,
+},
+
   icon: { marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: "800", color: "#ffffff", marginBottom: 10, textAlign: "center" },
-  subtitle: { fontSize: 16, color: "#e5e7eb", marginBottom: 20, textAlign: "center", paddingHorizontal: 12 },
+title: { 
+  fontSize: 28, 
+  fontWeight: "800", 
+  color: "#ffffff", 
+  textAlign: "center", // 🔑 MANTÉN "center"
+},
+  subtitle: { 
+    fontSize: 16, 
+    color: "#e5e7eb", 
+    marginBottom: 20, 
+    textAlign: "center", 
+    paddingHorizontal: 12 
+  },
 
   input: {
     width: "90%",

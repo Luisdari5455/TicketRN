@@ -43,7 +43,7 @@ export default function SinDpiScreen() {
   const sanitize = useCallback((raw: string) => {
     return raw
       .normalize("NFC")
-      .replace(/[^\p{L}\p{M}\s'’-]/gu, "")
+      .replace(/[^\p{L}\p{M}\s''-]/gu, "")
       .replace(/\s{2,}/g, " ")
       .replace(/^\s+/g, "")
       .slice(0, 60);
@@ -132,21 +132,6 @@ export default function SinDpiScreen() {
             colors={["#104c80", "#104c80", "#104c80", "#0f172a"]}
             style={styles.wrapper}
           >
-            {/* Flecha fija con Safe Area */}
-            <TouchableOpacity
-              style={[styles.backButton, { top: insets.top + 12, left: 12 }]}
-              onPress={() => {
-                bump();
-                safeBack();
-              }}
-              activeOpacity={0.85}
-              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-              accessibilityRole="button"
-              accessibilityLabel="Regresar"
-            >
-              <FontAwesome5 name="arrow-left" size={18} color="#ffffff" />
-            </TouchableOpacity>
-
             {/* Scroll que se contrae con teclado */}
             <ScrollView
               contentContainerStyle={[
@@ -165,7 +150,27 @@ export default function SinDpiScreen() {
                 style={styles.container}
               >
                 <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
-                <Text style={styles.title}>Registro sin DPI</Text>
+                
+                {/* Header con título centrado y flecha más a la izquierda */}
+                <View style={styles.headerContainer}>
+                  <View style={styles.titleWrapper}>
+                    <TouchableOpacity
+                      style={styles.backButton}
+                      onPress={() => {
+                        bump();
+                        safeBack();
+                      }}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Regresar"
+                    >
+                      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Registro sin DPI</Text>
+                  </View>
+                </View>
+                
                 <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
 
                 <TextInput
@@ -249,7 +254,7 @@ export default function SinDpiScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
-  scrollContent: { flexGrow: 1 }, // 🔑 permite que el contenido “suba” con el teclado
+  scrollContent: { flexGrow: 1 }, // 🔑 permite que el contenido "suba" con el teclado
   container: {
     justifyContent: "center",
     alignItems: "center",
@@ -258,27 +263,38 @@ const styles = StyleSheet.create({
   },
   icon: { marginBottom: 20 },
 
-  backButton: {
-    position: "absolute",
-    zIndex: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 5,
+  // Header con título centrado y flecha más a la izquierda
+  headerContainer: {
+    width: "100%",
+    marginBottom: 10,
+    alignItems: "center", // Centra todo el contenido del header
   },
+  titleWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center", // Centra el contenido dentro del wrapper
+    marginLeft: -20, // 🔑 AQUÍ PUEDES AJUSTAR: más negativo = más a la izquierda
+  },
+  backButton: {
+  position: "absolute",
+  left: -390, // ⬅️ mueve solo la flecha
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: "rgba(255,255,255,0.18)",
+  alignItems: "center",
+  justifyContent: "center",
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowOffset: { width: 0, height: 2 },
+  shadowRadius: 4,
+  elevation: 5,
+},
 
   title: {
     fontSize: 28,
     fontWeight: "800",
     color: "#ffffff",
-    marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
