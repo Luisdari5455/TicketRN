@@ -19,7 +19,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { MotiView } from "moti";
-import { useIdleReset } from "../hooks/useIdleReset";
 import { getClientByDpi } from "../services/ticketService";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -132,17 +131,7 @@ export default function DpiScreen() {
     }, [clearAll])
   );
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      clearAll();
-      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome" as any);
-    },
-  });
-
-  const bumpOnFocus = useCallback(() => bump(), [bump]);
-  const bumpOnKey = useCallback(() => bump(), [bump]);
+  // 🔥 SIN useIdleReset — TODO ESTO SE ELIMINÓ  
 
   useEffect(() => {
     const run = async () => {
@@ -205,9 +194,8 @@ export default function DpiScreen() {
     }
   };
 
-  const dismissAndBump = () => {
+  const dismissKeyboard = () => {
     Keyboard.dismiss();
-    bump();
   };
 
   return (
@@ -216,14 +204,12 @@ export default function DpiScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={insets.top + 8}
     >
-      <TouchableWithoutFeedback onPress={dismissAndBump} accessible={false}>
+      <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
         <View style={{ flex: 1 }}>
           <LinearGradient
             colors={['#104c80','#104c80','#104c80','#0f172a']}
             style={styles.wrapper}
           >
-            
- 
 
             <ScrollView
               contentContainerStyle={[
@@ -241,24 +227,22 @@ export default function DpiScreen() {
                 style={styles.inner}
               >
                 <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-                
-                {/* Header con título y flecha integrados */}
-  
-<View style={styles.headerContainer}>
-  <View style={styles.titleWrapper}>
-    <TouchableOpacity
-      style={styles.inlineBackButton}
-      onPress={() => { bump(); safeBack(); }}
-      activeOpacity={0.85}
-      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-    >
-      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
-    </TouchableOpacity>
-    <Text style={styles.title}>Registro con DPI</Text>
-  </View>
-</View>
-               
-                
+
+                {/* Header */}
+                <View style={styles.headerContainer}>
+                  <View style={styles.titleWrapper}>
+                    <TouchableOpacity
+                      style={styles.inlineBackButton}
+                      onPress={safeBack}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    >
+                      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Registro con DPI</Text>
+                  </View>
+                </View>
+
                 <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
                 {/* DPI */}
@@ -271,22 +255,15 @@ export default function DpiScreen() {
                   maxLength={13}
                   value={dpi}
                   onChangeText={(text) => {
-                    bump();
                     const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
                     setDpi(numericText);
-                    if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
-                      clearAutoFilled();
-                      lastQueried.current = "";
-                    }
                   }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
                   placeholderTextColor="#9CA3AF"
                   contextMenuHidden
                   autoCorrect={false}
                   returnKeyType="next"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { bump(); nombreRef.current?.focus(); }}
+                  onSubmitEditing={() => nombreRef.current?.focus()}
                 />
 
                 {/* Nombre */}
@@ -295,23 +272,18 @@ export default function DpiScreen() {
                   style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
                   placeholder="Nombre"
                   value={nombre}
-                  onChangeText={(text) => { bump(); setNombre(sanitizeName(text)); }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
+                  onChangeText={(text) => setNombre(sanitizeName(text))}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
                   autoCorrect={false}
-                  importantForAutofill="no"
-                  textContentType="name"
-                  autoComplete="name"
                   editable={!locked}
                   contextMenuHidden
                   maxLength={60}
                   returnKeyType="next"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { bump(); apellidoRef.current?.focus(); }}
+                  onSubmitEditing={() => apellidoRef.current?.focus()}
                 />
 
                 {/* Apellido */}
@@ -320,27 +292,25 @@ export default function DpiScreen() {
                   style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
                   placeholder="Apellido"
                   value={apellido}
-                  onChangeText={(text) => { bump(); setApellido(sanitizeName(text)); }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
+                  onChangeText={(text) => setApellido(sanitizeName(text))}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
                   autoCorrect={false}
-                  importantForAutofill="no"
-                  textContentType="familyName"
-                  autoComplete="name-family"
                   editable={!locked}
                   contextMenuHidden
                   maxLength={60}
                   returnKeyType="done"
                   blurOnSubmit={true}
-                  onSubmitEditing={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                  onSubmitEditing={() => {
+                    Keyboard.dismiss();
+                    handleNext();
+                  }}
                 />
 
                 {locked && (
-                  <TouchableOpacity onPress={() => { bump(); setLocked(false); }} style={{ marginBottom: 8 }}>
+                  <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
                     <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
                   </TouchableOpacity>
                 )}
@@ -348,9 +318,12 @@ export default function DpiScreen() {
                 <View style={styles.buttonWrapper}>
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    onPressIn={() => { bump(); scale.value = withSpring(0.95); }}
-                    onPressOut={() => { scale.value = withSpring(1); }}
-                    onPress={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                    onPressIn={() => (scale.value = withSpring(0.95))}
+                    onPressOut={() => (scale.value = withSpring(1))}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      handleNext();
+                    }}
                   >
                     <Animated.View style={[styles.animatedButton, animatedStyle]}>
                       <Text style={styles.buttonText}>Continuar</Text>
@@ -376,67 +349,44 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Flecha en posición absoluta - VISIBLE
-  backButton: {
-    position: "absolute",
-    zIndex: 20,
+  headerContainer: {
+    width: "100%",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  titleWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+  },
+  inlineBackButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 10,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 5,
+    position: "absolute",
+    left: 100, 
+    zIndex: 10,
   },
-
-  // Header con título y flecha integrados
-  headerContainer: {
-    width: "100%",
-    marginBottom: 10,
-    alignItems: "center",
-  },
-titleWrapper: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center", // 🔑 MANTÉN "center" para centrar todo
-  width: "100%",
-  position: "relative", // 🔑 AGREGAR esto
-},
-inlineBackButton: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: "rgba(255,255,255,0.18)",
-  alignItems: "center",
-  justifyContent: "center",
-  marginRight: 10,
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 5,
-  position: "absolute", // 🔑 AGREGAR esto
-  left: 100, // 🔑 AQUÍ AJUSTAS: más negativo = más a la izquierda (SOLO LA FLECHA)
-  zIndex: 10,
-},
 
   icon: { marginBottom: 20 },
-title: { 
-  fontSize: 28, 
-  fontWeight: "800", 
-  color: "#ffffff", 
-  textAlign: "center", // 🔑 MANTÉN "center"
-},
-  subtitle: { 
-    fontSize: 16, 
-    color: "#e5e7eb", 
-    marginBottom: 20, 
-    textAlign: "center", 
-    paddingHorizontal: 12 
+  title: { fontSize: 28, fontWeight: "800", color: "#ffffff", textAlign: "center" },
+  subtitle: {
+    fontSize: 16,
+    color: "#e5e7eb",
+    marginBottom: 20,
+    textAlign: "center",
+    paddingHorizontal: 12,
   },
 
   input: {

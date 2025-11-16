@@ -18,7 +18,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { MotiView } from "moti";
-import { useIdleReset } from "../hooks/useIdleReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -61,15 +60,8 @@ export default function SinDpiScreen() {
     }, [])
   );
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      setNombre("");
-      setApellido("");
-      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome");
-    },
-  });
+  // 🚫 Eliminado useIdleReset
+  // 🚫 Eliminado bump()
 
   const handleNext = () => {
     if (!nombre.trim() || !apellido.trim()) {
@@ -88,11 +80,10 @@ export default function SinDpiScreen() {
 
   const handleNombreChange = (t: string) => {
     setNombre(sanitize(t));
-    bump();
   };
+
   const handleApellidoChange = (t: string) => {
     setApellido(sanitize(t));
-    bump();
   };
 
   const safeBack = () => {
@@ -114,33 +105,29 @@ export default function SinDpiScreen() {
     }
   };
 
-  // 👉 Tap fuera para cerrar teclado + contar actividad
-  const dismissAndBump = () => {
+  const dismissKeyboard = () => {
     Keyboard.dismiss();
-    bump();
   };
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={insets.top + 8} // importante para no tapar el header
+      keyboardVerticalOffset={insets.top + 8}
     >
-      <TouchableWithoutFeedback onPress={dismissAndBump} accessible={false}>
+      <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
         <View style={{ flex: 1 }}>
           <LinearGradient
             colors={["#104c80", "#104c80", "#104c80", "#0f172a"]}
             style={styles.wrapper}
           >
-            {/* Scroll que se contrae con teclado */}
             <ScrollView
               contentContainerStyle={[
                 styles.scrollContent,
                 { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 16 },
               ]}
-              keyboardShouldPersistTaps="handled" // 🔑 permite tapear fuera y cerrar teclado
+              keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
-              // iOS moderno ajusta insets automáticamente
               automaticallyAdjustKeyboardInsets={true}
             >
               <MotiView
@@ -150,27 +137,21 @@ export default function SinDpiScreen() {
                 style={styles.container}
               >
                 <FontAwesome5 name="user" size={60} color="#fff" style={styles.icon} />
-                
-                {/* Header con título centrado y flecha más a la izquierda */}
+
                 <View style={styles.headerContainer}>
                   <View style={styles.titleWrapper}>
                     <TouchableOpacity
                       style={styles.backButton}
-                      onPress={() => {
-                        bump();
-                        safeBack();
-                      }}
+                      onPress={safeBack}
                       activeOpacity={0.85}
                       hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Regresar"
                     >
                       <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
                     </TouchableOpacity>
                     <Text style={styles.title}>Registro sin DPI</Text>
                   </View>
                 </View>
-                
+
                 <Text style={styles.subtitle}>Por favor, ingrese su nombre y apellido</Text>
 
                 <TextInput
@@ -180,7 +161,6 @@ export default function SinDpiScreen() {
                   placeholderTextColor="#9CA3AF"
                   value={nombre}
                   onChangeText={handleNombreChange}
-                  onFocus={bump}
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
@@ -190,11 +170,8 @@ export default function SinDpiScreen() {
                   contextMenuHidden
                   maxLength={60}
                   returnKeyType="next"
-                  blurOnSubmit={false} // 🔑 no cerrar el teclado al pasar al siguiente
-                  onSubmitEditing={() => {
-                    bump();
-                    lastNameRef.current?.focus();
-                  }}
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
                 />
 
                 <TextInput
@@ -204,7 +181,6 @@ export default function SinDpiScreen() {
                   placeholderTextColor="#9CA3AF"
                   value={apellido}
                   onChangeText={handleApellidoChange}
-                  onFocus={bump}
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
@@ -214,9 +190,8 @@ export default function SinDpiScreen() {
                   contextMenuHidden
                   maxLength={60}
                   returnKeyType="done"
-                  blurOnSubmit={true} // 🔑 cerrar teclado al terminar
+                  blurOnSubmit={true}
                   onSubmitEditing={() => {
-                    bump();
                     Keyboard.dismiss();
                     handleNext();
                   }}
@@ -226,14 +201,12 @@ export default function SinDpiScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPressIn={() => {
-                      bump();
                       scale.value = withSpring(0.95);
                     }}
                     onPressOut={() => {
                       scale.value = withSpring(1);
                     }}
                     onPress={() => {
-                      bump();
                       Keyboard.dismiss();
                       handleNext();
                     }}
@@ -244,6 +217,7 @@ export default function SinDpiScreen() {
                   </TouchableOpacity>
                 </View>
               </MotiView>
+
             </ScrollView>
           </LinearGradient>
         </View>
@@ -254,7 +228,7 @@ export default function SinDpiScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
-  scrollContent: { flexGrow: 1 }, // 🔑 permite que el contenido "suba" con el teclado
+  scrollContent: { flexGrow: 1 },
   container: {
     justifyContent: "center",
     alignItems: "center",
@@ -263,33 +237,33 @@ const styles = StyleSheet.create({
   },
   icon: { marginBottom: 20 },
 
-  // Header con título centrado y flecha más a la izquierda
   headerContainer: {
     width: "100%",
     marginBottom: 10,
-    alignItems: "center", // Centra todo el contenido del header
+    alignItems: "center",
   },
   titleWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center", // Centra el contenido dentro del wrapper
-    marginLeft: -20, // 🔑 AQUÍ PUEDES AJUSTAR: más negativo = más a la izquierda
+    justifyContent: "center",
+    marginLeft: -20,
   },
+
   backButton: {
-  position: "absolute",
-  left: -390, // ⬅️ mueve solo la flecha
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: "rgba(255,255,255,0.18)",
-  alignItems: "center",
-  justifyContent: "center",
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 5,
-},
+    position: "absolute",
+    left: -390,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
 
   title: {
     fontSize: 28,
@@ -297,6 +271,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     textAlign: "center",
   },
+
   subtitle: {
     fontSize: 16,
     color: "#e5e7eb",
@@ -324,6 +299,7 @@ const styles = StyleSheet.create({
   },
 
   buttonWrapper: { width: "90%", borderRadius: 10, overflow: "hidden" },
+
   animatedButton: {
     backgroundColor: "#1e40af",
     paddingVertical: 16,
@@ -337,5 +313,11 @@ const styles = StyleSheet.create({
     elevation: 4,
     width: "100%",
   },
-  buttonText: { color: "#fff", fontSize: 18, fontWeight: "600", letterSpacing: 0.5 },
+
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
 });

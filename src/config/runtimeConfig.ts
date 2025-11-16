@@ -13,7 +13,7 @@ export type RuntimeConfig = {
 const KEY = '@runtimeConfig/v1';
 
 export const defaultConfig: RuntimeConfig = {
-  backendUrl: 'https://ticketapi-ceqz.onrender.com',
+  backendUrl: 'http://localhost:3001',
   sioPath: '/socket.io',
   locationId: 'sucursal-central-01',
   printerIp: '192.168.1.200',
