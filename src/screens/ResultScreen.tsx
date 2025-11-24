@@ -23,6 +23,7 @@ type TicketInfo = {
   ventanilla?: string;
   prefix?: string;
   turnNumber?: number;
+  correlativo?: string;
 };
 
 export default function ResultScreen() {
@@ -52,14 +53,10 @@ export default function ResultScreen() {
   useEffect(() => { bump(); }, [bump]);
 
   const { turno, ventanilla } = useMemo(() => {
-    const safeTurno =
-      rawInfo?.turno ||
-      (rawInfo?.prefix && rawInfo?.turnNumber
-        ? `${rawInfo.prefix}-${String(rawInfo.turnNumber).padStart(3, '0')}`
-        : '—');
+    const safeTurno = rawInfo?.turno || rawInfo?.correlativo || '—';
     const safeVentanilla = rawInfo?.ventanilla;
     return { turno: safeTurno, ventanilla: safeVentanilla };
-  }, [rawInfo?.turno, rawInfo?.ventanilla, rawInfo?.prefix, rawInfo?.turnNumber]);
+  }, [rawInfo?.turno, rawInfo?.correlativo, rawInfo?.ventanilla]);
 
   const handleBack = () => {
     bump();

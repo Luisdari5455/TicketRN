@@ -8,6 +8,13 @@ export type RuntimeConfig = {
   printerIp: string;
   printerPort?: number;
   token?: string;
+  // 'backend' = imprime en servidor
+  // 'bluetooth' = imprime directo por BT
+  // 'auto' = intenta backend y si falla imprime por BT con comprobante provisional
+  printerMode?: 'backend' | 'bluetooth' | 'auto';
+  // Datos del dispositivo Bluetooth (SPP) para impresión directa
+  btDeviceName?: string;
+  btDeviceAddress?: string; // MAC en Android (ej. AA:BB:CC:DD:EE:FF)
 };
 
 const KEY = '@runtimeConfig/v1';
@@ -19,6 +26,9 @@ export const defaultConfig: RuntimeConfig = {
   printerIp: '192.168.1.200',
   printerPort: 9100,
   token: 'supersecreto123',
+  printerMode: 'backend',
+  btDeviceName: undefined,
+  btDeviceAddress: undefined,
 };
 
 export async function loadConfig(): Promise<RuntimeConfig> {

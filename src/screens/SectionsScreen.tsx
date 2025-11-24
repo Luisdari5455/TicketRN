@@ -1,3 +1,6 @@
+import { printTicket } from '../services/printerService';
+import { submitAndMaybePrint } from "../services/ticketFlow";
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -176,14 +179,18 @@ export default function SectionsScreen() {
       };
       if (dpi) payload.dpi = dpi;
 
-      const ticketInfo = await registerTicket(payload);
+      const { official, provisionalId } = await submitAndMaybePrint(payload);
 
       if (!isMountedRef.current) return;
 
       clearSafetyTimer();
       setSubmittingServiceId(null);
 
-      navigation.navigate("Result" as any, { ticketInfo });
+      if (official) {
+        navigation.navigate("Result" as any, { ticketInfo: official });
+      } else {
+        navigation.navigate("Result" as any, { ticketInfo: { correlativo: provisionalId, prefix: 'PROV', turnNumber: 0, createdAt: new Date().toISOString(), idTicketRegistration: 0, idTicketStatus: 0 } as any });
+      }
     } catch (error: any) {
       console.error("Error al registrar ticket:", error);
       if (!isMountedRef.current) return;
@@ -329,7 +336,7 @@ export default function SectionsScreen() {
                 width: Math.min(width * 0.92, MAX_SHEET_WIDTH),
               },
             ]}
-          >
+              >
             <LinearGradient
               colors={[COL_CHAMBRAY, COL_CHAMBRAY, COL_CHAMBRAY]}
               style={styles.sheetGradient}
