@@ -23,7 +23,7 @@ import { MotiView } from "moti";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { getServices, registerTicket } from "../services/ticketService";
 import type { RouteProp } from "@react-navigation/native";
-import { useIdleReset } from "../hooks/useIdleReset";
+
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -77,14 +77,7 @@ export default function SectionsScreen() {
     };
   }, []);
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      setDetailsVisible(false);
-      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome" as any);
-    },
-  });
+
 
   useEffect(() => {
     if (!sessionId) {
@@ -148,36 +141,31 @@ export default function SectionsScreen() {
 
   const safeBack = useCallback(() => {
     if (detailsVisible && submittingServiceId === null) {
-      bump();
       setDetailsVisible(false);
       return;
     }
     if (navigation.canGoBack?.() && navigation.canGoBack()) {
-      bump();
       navigation.goBack();
       return;
     }
     const parent = navigation.getParent?.();
     if (parent) {
       try {
-        bump();
         (parent as any).navigate("Home");
         return;
       } catch {}
     }
     try {
-      bump();
       (navigation as any).reset({ index: 0, routes: [{ name: "Home" }] });
     } catch {
       (navigation as any).reset({ index: 0, routes: [{ name: "Welcome" }] });
     }
-  }, [detailsVisible, submittingServiceId, navigation, bump]);
+  }, [detailsVisible, submittingServiceId, navigation]);
 
   const handleSelect = async (section: ServiceType) => {
     if (submittingServiceId !== null) return;
 
     try {
-      bump();
       setSubmittingServiceId(section.idService);
       startSafetyTimer();
 
@@ -197,7 +185,6 @@ export default function SectionsScreen() {
       clearSafetyTimer();
       setSubmittingServiceId(null);
 
-      bump();
       navigation.navigate("Result" as any, { ticketInfo });
     } catch (error: any) {
       console.error("Error al registrar ticket:", error?.response?.data || error?.message || error);
@@ -210,14 +197,12 @@ export default function SectionsScreen() {
 
   const openDetails = (service: ServiceType) => {
     if (submittingServiceId !== null) return;
-    bump();
     setDetailsService(service);
     setDetailsVisible(true);
   };
 
   const closeDetails = () => {
     if (submittingServiceId !== null) return;
-    bump();
     setDetailsVisible(false);
   };
 
@@ -250,7 +235,6 @@ export default function SectionsScreen() {
         {restCount > 0 && (
           <TouchableOpacity
             onPress={() => {
-              bump();
               onOpenMore && onOpenMore();
             }}
             style={[styles.chip, styles.moreChip]}
@@ -268,7 +252,6 @@ export default function SectionsScreen() {
     <LinearGradient
       colors={[COL_DEEP, COL_DEEP, COL_DEEP, COL_NAVY]}
       style={[styles.container, { paddingTop: insets.top + 12 }]}
-      onTouchStart={bump}
     >
       {/* Flecha igual a SinDPI/DPI: fija, circular y translúcida con safe area */}
  <TouchableOpacity
@@ -298,10 +281,6 @@ export default function SectionsScreen() {
         keyExtractor={(item) => item?.idService?.toString() || String(item?.idService)}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={bump}
-        onMomentumScrollBegin={bump}
-        onScrollBeginDrag={bump}
-        onScrollEndDrag={bump}
         scrollEventThrottle={16}
         renderItem={({ item, index }) => {
           const disabled = submittingServiceId !== null;
@@ -316,7 +295,6 @@ export default function SectionsScreen() {
               <TouchableOpacity
                 style={[styles.cardButton, disabled && { opacity: isSubmittingThis ? 1 : 0.6 }]}
                 onPress={() => handleSelect(item)}
-                onPressIn={bump}
                 activeOpacity={0.9}
                 disabled={disabled}
               >
@@ -330,7 +308,6 @@ export default function SectionsScreen() {
                 <TouchableOpacity
                   style={styles.infoButton}
                   onPress={() => openDetails(item)}
-                  onPressIn={bump}
                   activeOpacity={0.85}
                   disabled={disabled}
                 >
@@ -358,17 +335,14 @@ export default function SectionsScreen() {
         transparent
         animationType="none"
         onRequestClose={() => {
-          bump();
           closeDetails();
         }}
-        onShow={bump}
       >
         <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]} />
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject as any}
           activeOpacity={1}
           onPress={() => {
-            bump();
             closeDetails();
           }}
         />
@@ -400,7 +374,6 @@ export default function SectionsScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      bump();
                       closeDetails();
                     }}
                     style={styles.sheetCloseBtn}
@@ -417,10 +390,6 @@ export default function SectionsScreen() {
                   style={{ flex: 1 }}
                   contentContainerStyle={styles.sheetBody}
                   showsVerticalScrollIndicator
-                  onScroll={bump}
-                  onScrollBeginDrag={bump}
-                  onMomentumScrollBegin={bump}
-                  onScrollEndDrag={bump}
                   scrollEventThrottle={16}
                 >
                   {(() => {
@@ -451,7 +420,6 @@ export default function SectionsScreen() {
                   <TouchableOpacity
                     style={styles.modalCloseBtn}
                     onPress={() => {
-                      bump();
                       closeDetails();
                     }}
                     activeOpacity={0.9}
@@ -467,7 +435,7 @@ export default function SectionsScreen() {
       </Modal>
 
       {/* Overlay global de carga */}
-      <Modal visible={submittingServiceId !== null} transparent animationType="fade" onShow={bump}>
+      <Modal visible={submittingServiceId !== null} transparent animationType="fade">
         <View style={styles.globalOverlay}>
           <View style={styles.globalLoaderCard}>
             <ActivityIndicator size="large" />

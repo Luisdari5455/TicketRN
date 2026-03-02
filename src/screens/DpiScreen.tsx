@@ -19,7 +19,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { MotiView } from "moti";
-import { useIdleReset } from "../hooks/useIdleReset";
 import { getClientByDpi } from "../services/ticketService";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -132,17 +131,7 @@ export default function DpiScreen() {
     }, [clearAll])
   );
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      clearAll();
-      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome" as any);
-    },
-  });
 
-  const bumpOnFocus = useCallback(() => bump(), [bump]);
-  const bumpOnKey = useCallback(() => bump(), [bump]);
 
   useEffect(() => {
     const run = async () => {
@@ -207,7 +196,6 @@ export default function DpiScreen() {
 
   const dismissAndBump = () => {
     Keyboard.dismiss();
-    bump();
   };
 
   return (
@@ -248,7 +236,7 @@ export default function DpiScreen() {
   <View style={styles.titleWrapper}>
     <TouchableOpacity
       style={styles.inlineBackButton}
-      onPress={() => { bump(); safeBack(); }}
+      onPress={() => { safeBack(); }}
       activeOpacity={0.85}
       hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
     >
@@ -271,7 +259,6 @@ export default function DpiScreen() {
                   maxLength={13}
                   value={dpi}
                   onChangeText={(text) => {
-                    bump();
                     const numericText = text.replace(/[^0-9]/g, "").slice(0, 13);
                     setDpi(numericText);
                     if (numericText.length < 13 || (autoFillDpiRef.current && numericText !== autoFillDpiRef.current)) {
@@ -279,14 +266,12 @@ export default function DpiScreen() {
                       lastQueried.current = "";
                     }
                   }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
                   placeholderTextColor="#9CA3AF"
                   contextMenuHidden
                   autoCorrect={false}
                   returnKeyType="next"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { bump(); nombreRef.current?.focus(); }}
+                  onSubmitEditing={() => { nombreRef.current?.focus(); }}
                 />
 
                 {/* Nombre */}
@@ -295,9 +280,7 @@ export default function DpiScreen() {
                   style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
                   placeholder="Nombre"
                   value={nombre}
-                  onChangeText={(text) => { bump(); setNombre(sanitizeName(text)); }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
+                  onChangeText={(text) => { setNombre(sanitizeName(text)); }}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="default"
                   inputMode="text"
@@ -311,7 +294,7 @@ export default function DpiScreen() {
                   maxLength={60}
                   returnKeyType="next"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { bump(); apellidoRef.current?.focus(); }}
+                  onSubmitEditing={() => { apellidoRef.current?.focus(); }}
                 />
 
                 {/* Apellido */}
@@ -320,9 +303,7 @@ export default function DpiScreen() {
                   style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
                   placeholder="Apellido"
                   value={apellido}
-                  onChangeText={(text) => { bump(); setApellido(sanitizeName(text)); }}
-                  onKeyPress={bumpOnKey}
-                  onFocus={bumpOnFocus}
+                  onChangeText={(text) => { setApellido(sanitizeName(text)); }}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="default"
                   inputMode="text"
@@ -336,11 +317,11 @@ export default function DpiScreen() {
                   maxLength={60}
                   returnKeyType="done"
                   blurOnSubmit={true}
-                  onSubmitEditing={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                  onSubmitEditing={() => { Keyboard.dismiss(); handleNext(); }}
                 />
 
                 {locked && (
-                  <TouchableOpacity onPress={() => { bump(); setLocked(false); }} style={{ marginBottom: 8 }}>
+                  <TouchableOpacity onPress={() => { setLocked(false); }} style={{ marginBottom: 8 }}>
                     <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
                   </TouchableOpacity>
                 )}
@@ -348,9 +329,9 @@ export default function DpiScreen() {
                 <View style={styles.buttonWrapper}>
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    onPressIn={() => { bump(); scale.value = withSpring(0.95); }}
+                    onPressIn={() => { scale.value = withSpring(0.95); }}
                     onPressOut={() => { scale.value = withSpring(1); }}
-                    onPress={() => { bump(); Keyboard.dismiss(); handleNext(); }}
+                    onPress={() => { Keyboard.dismiss(); handleNext(); }}
                   >
                     <Animated.View style={[styles.animatedButton, animatedStyle]}>
                       <Text style={styles.buttonText}>Continuar</Text>

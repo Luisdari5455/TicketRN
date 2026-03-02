@@ -4,15 +4,14 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Pressable,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { useIdleReset } from '../hooks/useIdleReset';
+
 import { useKeepAwake } from 'expo-keep-awake';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Result'>;
@@ -33,23 +32,7 @@ export default function ResultScreen() {
 
   const rawInfo = (route.params as any)?.ticketInfo as TicketInfo | undefined;
 
-  const { bump } = useIdleReset({
-    timeoutMs: 45000,
-    onTimeout: () => {
-      navigation.replace('Welcome');
-    },
-  });
 
-  // ▶️ cuenta actividad al entrar (o volver) a la pantalla
-  useFocusEffect(
-    React.useCallback(() => {
-      bump();
-      return undefined;
-    }, [bump])
-  );
-
-  // (por si acaso) arranque inicial
-  useEffect(() => { bump(); }, [bump]);
 
   const { turno, ventanilla } = useMemo(() => {
     const safeTurno =
@@ -62,7 +45,6 @@ export default function ResultScreen() {
   }, [rawInfo?.turno, rawInfo?.ventanilla, rawInfo?.prefix, rawInfo?.turnNumber]);
 
   const handleBack = () => {
-    bump();
     navigation.navigate('Home');
   };
 
@@ -98,8 +80,6 @@ export default function ResultScreen() {
 
       <TouchableOpacity
         style={styles.button}
-        onPressIn={bump}                // 👈 cuenta como actividad
-        onPressOut={bump}               // 👈 cuenta como actividad
         onPress={handleBack}
         activeOpacity={0.9}
       >
@@ -109,12 +89,9 @@ export default function ResultScreen() {
   );
 
   return (
-    // 👇 cualquier toque cuenta; el responder fallback ayuda en ciertos dispositivos
-    <Pressable style={{ flex: 1 }} onTouchStart={bump} onStartShouldSetResponder={() => { bump(); return false; }}>
-      <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.wrapper}>
-        {Content}
-      </LinearGradient>
-    </Pressable>
+    <LinearGradient colors={['#104c80','#104c80','#104c80','#0f172a']} style={styles.wrapper}>
+      {Content}
+    </LinearGradient>
   );
 }
 

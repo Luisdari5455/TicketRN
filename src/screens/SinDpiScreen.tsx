@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { MotiView } from "moti";
-import { useIdleReset } from "../hooks/useIdleReset";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -61,15 +61,7 @@ export default function SinDpiScreen() {
     }, [])
   );
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      setNombre("");
-      setApellido("");
-      Toast.show({ type: "info", text1: "Sesión reiniciada por inactividad" });
-      navigation.replace("Welcome");
-    },
-  });
+
 
   const handleNext = () => {
     if (!nombre.trim() || !apellido.trim()) {
@@ -88,11 +80,9 @@ export default function SinDpiScreen() {
 
   const handleNombreChange = (t: string) => {
     setNombre(sanitize(t));
-    bump();
   };
   const handleApellidoChange = (t: string) => {
     setApellido(sanitize(t));
-    bump();
   };
 
   const safeBack = () => {
@@ -114,10 +104,9 @@ export default function SinDpiScreen() {
     }
   };
 
-  // 👉 Tap fuera para cerrar teclado + contar actividad
+  // 👉 Tap fuera para cerrar teclado
   const dismissAndBump = () => {
     Keyboard.dismiss();
-    bump();
   };
 
   return (
@@ -157,7 +146,6 @@ export default function SinDpiScreen() {
                     <TouchableOpacity
                       style={styles.backButton}
                       onPress={() => {
-                        bump();
                         safeBack();
                       }}
                       activeOpacity={0.85}
@@ -180,7 +168,6 @@ export default function SinDpiScreen() {
                   placeholderTextColor="#9CA3AF"
                   value={nombre}
                   onChangeText={handleNombreChange}
-                  onFocus={bump}
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
@@ -192,7 +179,6 @@ export default function SinDpiScreen() {
                   returnKeyType="next"
                   blurOnSubmit={false} // 🔑 no cerrar el teclado al pasar al siguiente
                   onSubmitEditing={() => {
-                    bump();
                     lastNameRef.current?.focus();
                   }}
                 />
@@ -204,7 +190,6 @@ export default function SinDpiScreen() {
                   placeholderTextColor="#9CA3AF"
                   value={apellido}
                   onChangeText={handleApellidoChange}
-                  onFocus={bump}
                   keyboardType="default"
                   inputMode="text"
                   autoCapitalize="words"
@@ -216,7 +201,6 @@ export default function SinDpiScreen() {
                   returnKeyType="done"
                   blurOnSubmit={true} // 🔑 cerrar teclado al terminar
                   onSubmitEditing={() => {
-                    bump();
                     Keyboard.dismiss();
                     handleNext();
                   }}
@@ -226,14 +210,12 @@ export default function SinDpiScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPressIn={() => {
-                      bump();
                       scale.value = withSpring(0.95);
                     }}
                     onPressOut={() => {
                       scale.value = withSpring(1);
                     }}
                     onPress={() => {
-                      bump();
                       Keyboard.dismiss();
                       handleNext();
                     }}
