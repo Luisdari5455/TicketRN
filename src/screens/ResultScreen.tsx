@@ -12,8 +12,8 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { useIdleReset } from '../hooks/useIdleReset';
 import { useKeepAwake } from 'expo-keep-awake';
+import { useIdleReset } from '../hooks/useIdleReset';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Result'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'Result'>;
@@ -33,23 +33,24 @@ export default function ResultScreen() {
 
   const rawInfo = (route.params as any)?.ticketInfo as TicketInfo | undefined;
 
-  const { bump } = useIdleReset({
-    timeoutMs: 45000,
+  // Timeout automático para regresar al inicio después de mostrar el resultado
+  const { start: restartTimer } = useIdleReset({
+    timeoutMs: 30000, // 30 segundos
     onTimeout: () => {
-      navigation.replace('Welcome');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
     },
   });
 
-  // ▶️ cuenta actividad al entrar (o volver) a la pantalla
+  // Reinicia el timer cuando la pantalla obtiene foco
   useFocusEffect(
     React.useCallback(() => {
-      bump();
+      restartTimer();
       return undefined;
-    }, [bump])
+    }, [restartTimer])
   );
-
-  // (por si acaso) arranque inicial
-  useEffect(() => { bump(); }, [bump]);
 
   const { turno, ventanilla } = useMemo(() => {
     const safeTurno =

@@ -124,11 +124,19 @@ export default function DpiScreen() {
     }
   }, [navigation]);
 
+  // Solo limpiar campos cuando viene de Welcome, no en cada focus
   useFocusEffect(
     useCallback(() => {
-      clearAll();
-      return () => { clearAll(); };
-    }, [clearAll])
+      // Solo limpiar si venimos del Welcome screen (navegación inicial)
+      const navigationState = navigation.getState?.();
+      const previousRoute = navigationState?.routes?.[navigationState.index - 1];
+      if (!previousRoute || previousRoute.name === 'Welcome' || previousRoute.name === 'Home') {
+        clearAll();
+      }
+      return () => {
+        // No limpiar al salir para mantener datos si regresa
+      };
+    }, [clearAll, navigation])
   );
 
   useEffect(() => {

@@ -76,8 +76,7 @@ export default function SectionsScreen() {
     };
   }, []);
 
-  // ⛔ Se elimina validate bump + idle timeout
-  // antes aquí iba useIdleReset
+  // ⛔ Se eliminó validate bump + idle timeout
 
   useEffect(() => {
     if (!sessionId) {

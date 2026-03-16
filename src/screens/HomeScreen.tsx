@@ -1,46 +1,21 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useIdleReset } from '../hooks/useIdleReset';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
 
-  const { bump } = useIdleReset({
-    timeoutMs: 60000,
-    onTimeout: () => {
-      navigation.replace('Welcome' as any);
-    },
-  });
-
-  // Arranca el timer y también cada vez que la pantalla vuelve a enfocarse
-  useFocusEffect(
-    React.useCallback(() => {
-      bump();                 // 👈 al entrar a Home
-      return () => {
-        // opcional: bump() al salir si quieres marcar actividad de navegación
-      };
-    }, [bump])
-  );
-
-  // Asegura arranque inicial (por si acaso)
-  useEffect(() => {
-    bump();
-  }, [bump]);
-
   return (
     <LinearGradient
       colors={['#104c80', '#104c80', '#104c80', '#0f172a']}
       style={styles.container}
-      onTouchStart={bump}                              // 👈 cualquier toque
-      onStartShouldSetResponder={() => { bump(); return false; }} // 👈 fallback extra
     >
       <MotiView
         from={{ opacity: 0, translateY: -30 }}
@@ -59,9 +34,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
           activeOpacity={0.9}
-          onPressIn={bump}                              // 👈 cuenta como actividad
-          onPressOut={bump}                             // 👈 cuenta como actividad
-          onPress={() => { bump(); navigation.navigate('DPI' as any); }}
+          onPress={() => navigation.navigate('DPI' as any)}
         >
           <FontAwesome5 name="id-card" size={20} color="#fff" style={styles.icon} />
           <Text style={styles.buttonText}>Registrar con DPI</Text>
@@ -76,9 +49,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
           activeOpacity={0.9}
-          onPressIn={bump}
-          onPressOut={bump}
-          onPress={() => { bump(); navigation.navigate('SinDPI' as any); }}
+          onPress={() => navigation.navigate('SinDPI' as any)}
         >
           <FontAwesome5 name="user" size={20} color="#fff" style={styles.icon} />
           <Text style={styles.buttonText}>Registrar sin DPI</Text>
