@@ -5,14 +5,14 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-
 import { useKeepAwake } from 'expo-keep-awake';
+import { useIdleReset } from '../hooks/useIdleReset';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Result'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'Result'>;
@@ -32,7 +32,24 @@ export default function ResultScreen() {
 
   const rawInfo = (route.params as any)?.ticketInfo as TicketInfo | undefined;
 
+  // Timeout automático para regresar al inicio después de mostrar el resultado
+  const { start: restartTimer } = useIdleReset({
+    timeoutMs: 30000, // 30 segundos
+    onTimeout: () => {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
+    },
+  });
 
+  // Reinicia el timer cuando la pantalla obtiene foco
+  useFocusEffect(
+    React.useCallback(() => {
+      restartTimer();
+      return undefined;
+    }, [restartTimer])
+  );
 
   const { turno, ventanilla } = useMemo(() => {
     const safeTurno =
@@ -118,3 +135,4 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#2563eb', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 10, marginTop: 20 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
+

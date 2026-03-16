@@ -76,15 +76,14 @@ const sanitizeName = (raw: string) =>
     .replace(/[^\p{L}\p{M}\s]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^\s+/g, '')
-    .slice(0, 60);
+    .slice(0, 50);
 
 export default function DpiScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
 
   const [dpi, setDpi] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [apellido, setApellido] = useState("");
+  const [fullName, setFullName] = useState("");
   const [locked, setLocked] = useState(false);
   const lastQueried = useRef<string>("");
   const autoFillDpiRef = useRef<string | null>(null);
@@ -96,8 +95,7 @@ export default function DpiScreen() {
 
   const clearAll = useCallback((): void => {
     setDpi('');
-    setNombre('');
-    setApellido('');
+    setFullName('');
     setLocked(false);
     lastQueried.current = "";
     autoFillDpiRef.current = null;
@@ -106,8 +104,7 @@ export default function DpiScreen() {
   const clearAutoFilled = useCallback((): void => {
     if (locked || autoFillDpiRef.current) {
       setLocked(false);
-      setNombre('');
-      setApellido('');
+      setFullName('');
       autoFillDpiRef.current = null;
     }
   }, [locked]);
@@ -124,14 +121,20 @@ export default function DpiScreen() {
     }
   }, [navigation]);
 
+  // Solo limpiar campos cuando viene de Welcome, no en cada focus
   useFocusEffect(
     useCallback(() => {
-      clearAll();
-      return () => { clearAll(); };
-    }, [clearAll])
+      // Solo limpiar si venimos del Welcome screen (navegación inicial)
+      const navigationState = navigation.getState?.();
+      const previousRoute = navigationState?.routes?.[navigationState.index - 1];
+      if (!previousRoute || previousRoute.name === 'Welcome' || previousRoute.name === 'Home') {
+        clearAll();
+      }
+      return () => {
+        // No limpiar al salir para mantener datos si regresa
+      };
+    }, [clearAll, navigation])
   );
-
-
 
   useEffect(() => {
     const run = async () => {
@@ -145,9 +148,7 @@ export default function DpiScreen() {
       try {
         const client = await getClientByDpi(dpi);
         if (client && client.name) {
-          const { nombre: n, apellido: a } = splitFullName(client.name);
-          setNombre(sanitizeName(n));
-          setApellido(sanitizeName(a));
+          setFullName(sanitizeName(client.name));
           setLocked(true);
           autoFillDpiRef.current = dpi;
           Toast.show({ type: "success", text1: "Cliente encontrado", text2: "Datos autocompletados." });
@@ -175,26 +176,30 @@ export default function DpiScreen() {
   }, [dpi, clearAutoFilled]);
 
   const dpiRef = useRef<TextInput>(null);
-  const nombreRef = useRef<TextInput>(null);
-  const apellidoRef = useRef<TextInput>(null);
+  const fullNameRef = useRef<TextInput>(null);
 
   const handleNext = () => {
     const result = validateCUI(dpi);
     if (!result.ok) {
       Toast.show({ type: "error", text1: "DPI inválido", text2: result.reason || "Ingrese un número de DPI válido de 13 dígitos." });
-    } else if (!nombre.trim() || !apellido.trim()) {
-      Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
-    } else {
-      Keyboard.dismiss();
-      navigation.navigate("Sections" as any, {
-        dpi: dpi.replace(/\D/g, ""),
-        name: `${nombre.trim()} ${apellido.trim()}`,
-        sessionId,
-      } as any);
+      return;
     }
+
+    const { nombre: firstName, apellido: lastName } = splitFullName(fullName);
+    if (!firstName.trim() || !lastName.trim()) {
+      Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingrese nombre y apellido." });
+      return;
+    }
+
+    Keyboard.dismiss();
+    navigation.navigate("Sections" as any, {
+      dpi: dpi.replace(/\D/g, ""),
+      name: fullName.trim(),
+      sessionId,
+    } as any);
   };
 
-  const dismissAndBump = () => {
+  const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
 
@@ -204,14 +209,12 @@ export default function DpiScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={insets.top + 8}
     >
-      <TouchableWithoutFeedback onPress={dismissAndBump} accessible={false}>
+      <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
         <View style={{ flex: 1 }}>
           <LinearGradient
             colors={['#104c80','#104c80','#104c80','#0f172a']}
             style={styles.wrapper}
           >
-            
- 
 
             <ScrollView
               contentContainerStyle={[
@@ -229,24 +232,22 @@ export default function DpiScreen() {
                 style={styles.inner}
               >
                 <FontAwesome5 name="id-card" size={60} color="#fff" style={styles.icon} />
-                
-                {/* Header con título y flecha integrados */}
-  
-<View style={styles.headerContainer}>
-  <View style={styles.titleWrapper}>
-    <TouchableOpacity
-      style={styles.inlineBackButton}
-      onPress={() => { safeBack(); }}
-      activeOpacity={0.85}
-      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-    >
-      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
-    </TouchableOpacity>
-    <Text style={styles.title}>Registro con DPI</Text>
-  </View>
-</View>
-               
-                
+
+                {/* Header */}
+                <View style={styles.headerContainer}>
+                  <View style={styles.titleWrapper}>
+                    <TouchableOpacity
+                      style={styles.inlineBackButton}
+                      onPress={safeBack}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    >
+                      <FontAwesome5 name="arrow-left" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Registro con DPI</Text>
+                  </View>
+                </View>
+
                 <Text style={styles.subtitle}>Por favor, ingrese sus datos</Text>
 
                 {/* DPI */}
@@ -271,16 +272,15 @@ export default function DpiScreen() {
                   autoCorrect={false}
                   returnKeyType="next"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { nombreRef.current?.focus(); }}
+                  onSubmitEditing={() => fullNameRef.current?.focus()}
                 />
 
-                {/* Nombre */}
                 <TextInput
-                  ref={nombreRef}
+                  ref={fullNameRef}
                   style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-                  placeholder="Nombre"
-                  value={nombre}
-                  onChangeText={(text) => { setNombre(sanitizeName(text)); }}
+                  placeholder="Nombre y apellido"
+                  value={fullName}
+                  onChangeText={(text) => setFullName(sanitizeName(text))}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="default"
                   inputMode="text"
@@ -291,37 +291,14 @@ export default function DpiScreen() {
                   autoComplete="name"
                   editable={!locked}
                   contextMenuHidden
-                  maxLength={60}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() => { apellidoRef.current?.focus(); }}
-                />
-
-                {/* Apellido */}
-                <TextInput
-                  ref={apellidoRef}
-                  style={[styles.input, locked && { backgroundColor: "#f3f4f6" }]}
-                  placeholder="Apellido"
-                  value={apellido}
-                  onChangeText={(text) => { setApellido(sanitizeName(text)); }}
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="default"
-                  inputMode="text"
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  importantForAutofill="no"
-                  textContentType="familyName"
-                  autoComplete="name-family"
-                  editable={!locked}
-                  contextMenuHidden
-                  maxLength={60}
+                  maxLength={50}
                   returnKeyType="done"
                   blurOnSubmit={true}
                   onSubmitEditing={() => { Keyboard.dismiss(); handleNext(); }}
                 />
 
                 {locked && (
-                  <TouchableOpacity onPress={() => { setLocked(false); }} style={{ marginBottom: 8 }}>
+                  <TouchableOpacity onPress={() => setLocked(false)} style={{ marginBottom: 8 }}>
                     <Text style={{ color: "#93c5fd" }}>Editar nombre/apellido</Text>
                   </TouchableOpacity>
                 )}
@@ -357,67 +334,49 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Flecha en posición absoluta - VISIBLE
-  backButton: {
-    position: "absolute",
-    zIndex: 20,
+  headerContainer: {
+    width: "100%",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  titleWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+  },
+  inlineBackButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 10,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 5,
+    position: "absolute",
+    left: 100,
+    zIndex: 10,
   },
-
-  // Header con título y flecha integrados
-  headerContainer: {
-    width: "100%",
-    marginBottom: 10,
-    alignItems: "center",
-  },
-titleWrapper: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center", // 🔑 MANTÉN "center" para centrar todo
-  width: "100%",
-  position: "relative", // 🔑 AGREGAR esto
-},
-inlineBackButton: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: "rgba(255,255,255,0.18)",
-  alignItems: "center",
-  justifyContent: "center",
-  marginRight: 10,
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 5,
-  position: "absolute", // 🔑 AGREGAR esto
-  left: 100, // 🔑 AQUÍ AJUSTAS: más negativo = más a la izquierda (SOLO LA FLECHA)
-  zIndex: 10,
-},
 
   icon: { marginBottom: 20 },
-title: { 
-  fontSize: 28, 
-  fontWeight: "800", 
-  color: "#ffffff", 
-  textAlign: "center", // 🔑 MANTÉN "center"
-},
-  subtitle: { 
-    fontSize: 16, 
-    color: "#e5e7eb", 
-    marginBottom: 20, 
-    textAlign: "center", 
-    paddingHorizontal: 12 
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#e5e7eb",
+    marginBottom: 20,
+    textAlign: "center",
+    paddingHorizontal: 12,
   },
 
   input: {
